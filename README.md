@@ -20,3 +20,18 @@ All integers are written in the big endian format.
  size    | the size of the message
  crc     | the CRC-32 checksum (using the IEEE polynomial) of the message
  message | the encoded message
+
+TODO
+----
+
+### Reader
+
+* Search offset
+* Tail/file/dir monitoring
+* Offset persistence
+* Lock to prevent deletion
+
+### Writer
+
+* Segmentation
+* Lock to prevent other writer

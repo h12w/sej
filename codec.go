@@ -99,10 +99,10 @@ func (r *Reader) readUint32() (uint32, error) {
 	var b [4]byte
 	n, err := io.ReadFull(r.r, b[:])
 	if err != nil {
-		return 0, fmt.Errorf("uint32 is truncated (%d)", n)
+		return 0, err
 	}
 	if n != 4 {
-		return 0, io.EOF
+		return 0, fmt.Errorf("uint32 is truncated (%d)", n)
 	}
 	return uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3]), nil
 }
