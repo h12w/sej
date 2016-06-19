@@ -2,7 +2,6 @@ package fq
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"strconv"
 	"testing"
@@ -11,36 +10,53 @@ import (
 func TestAppendRead(t *testing.T) {
 	path, err := ioutil.TempDir(".", "test-")
 	if err != nil {
-		log.Fatal(err)
+		t.Error(err)
+		return
 	}
-	defer os.Remove(path)
+	defer os.RemoveAll(path)
 	w, err := NewWriter(path)
 	if err != nil {
-		log.Fatal(err)
+		t.Error(err)
+		return
 	}
-	defer w.Close()
 	var messages []string
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 1000; i++ {
 		messages = append(messages, strconv.Itoa(i))
 	}
-	for _, msg := range messages {
-		if _, err := w.Append([]byte(msg)); err != nil {
-			log.Fatal(err)
+	for i, msg := range messages {
+		offset, err := w.Append([]byte(msg))
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if offset != uint64(i+1) {
+			t.Errorf("expect offset %d, got %d", i+1, offset)
+			return
 		}
 	}
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Error(err)
+		return
+	}
 	r, err := NewReader(path, 0)
 	if err != nil {
-		log.Fatal(err)
+		t.Error(err)
+		return
 	}
 	defer r.Close()
 	for i := range messages {
-		msg, err := r.Read()
+		msg, offset, err := r.Read()
 		if err != nil {
-			log.Fatal(err)
+			t.Error(err)
+			return
+		}
+		if int(offset) != i+1 {
+			t.Errorf("expect offset %d, got %d", i+1, offset)
+			return
 		}
 		if string(msg) != messages[i] {
-			t.Fatalf("expect %s, got %s", messages[i], string(msg))
+			t.Errorf("expect %s, got %s", messages[i], string(msg))
+			return
 		}
 	}
 }
