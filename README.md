@@ -26,12 +26,13 @@ TODO
 
 ### Reader
 
-* Search offset
+* Search offset (done)
 * Tail/file/dir monitoring
 * Offset persistence
 * Lock to prevent deletion
 
 ### Writer
 
+* Write from the last offset
 * Segmentation
 * Lock to prevent other writer

@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 const (
@@ -23,14 +22,12 @@ type (
 		offset uint64
 		file   *os.File
 		w      *bufio.Writer
-		mu     sync.Mutex
 	}
 	Reader struct {
 		dir    string
 		offset uint64
 		file   *os.File
 		r      *bufio.Reader
-		mu     sync.Mutex
 	}
 )
 
@@ -42,7 +39,11 @@ func NewWriter(dir string) (*Writer, error) {
 		return nil, err
 	}
 	if len(names) > 0 {
-		//sort.Strings(names)
+		w.file, err = os.OpenFile(names[len(names)-1].fileName, os.O_RDWR, 0644)
+		if err != nil {
+			return nil, err
+		}
+		w.w = bufio.NewWriter(w.file)
 	} else {
 		w.offset = 0
 		w.file, err = os.Create(path.Join(dir, fmt.Sprintf("%016x"+journalFileExt, w.offset)))
@@ -55,8 +56,6 @@ func NewWriter(dir string) (*Writer, error) {
 }
 
 func (w *Writer) Append(msg []byte) (offset uint64, err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	size := len(msg)
 	if size > math.MaxInt32 {
 		return w.offset, errors.New("message is too long")
@@ -84,8 +83,7 @@ func (w *Writer) Close() error {
 func NewReader(dir string, offset uint64) (*Reader, error) {
 	var err error
 	reader := Reader{
-		dir:    dir,
-		offset: offset,
+		dir: dir,
 	}
 	files, err := getJournalFiles(dir)
 	if err != nil {
@@ -101,15 +99,19 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 		return nil, err
 	}
 	reader.r = bufio.NewReader(reader.file)
-	if offset != file.startOffset {
-		// search the first offset
+	reader.offset = file.startOffset
+	for reader.offset < offset {
+		if _, err := reader.readMessage(); err != nil {
+			return nil, err
+		}
+	}
+	if reader.offset != offset {
+		return nil, fmt.Errorf("fail to find offset %d", offset)
 	}
 	return &reader, nil
 }
 
 func (r *Reader) Read() (msg []byte, offset uint64, err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	msg, err = r.readMessage()
 	if err != nil {
 		return nil, 0, err
