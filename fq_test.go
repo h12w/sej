@@ -71,13 +71,13 @@ func TestAppendRead(t *testing.T) {
 		}
 		defer r.Close()
 		for i := readFrom; i < len(messages); i++ {
-			msg, offset, err := r.Read()
+			msg, err := r.Read()
 			if err != nil {
 				t.Fatal(err)
 				return
 			}
-			if int(offset) != i+1 {
-				t.Fatalf("expect offset %d, got %d", i+1, offset)
+			if int(r.Offset()) != i+1 {
+				t.Fatalf("expect offset %d, got %d", i+1, r.Offset())
 				return
 			}
 			if string(msg) != messages[i] {

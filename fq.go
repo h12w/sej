@@ -78,9 +78,10 @@ func (w *Writer) Append(msg []byte) (offset uint64, err error) {
 	if size > math.MaxInt32 {
 		return w.offset, errors.New("message is too long")
 	}
-	if err := w.writeMessage(msg); err != nil {
+	if err := writeMessage(w.w, msg, w.offset); err != nil {
 		return w.offset, err
 	}
+	w.offset++
 	return w.offset, nil
 }
 
@@ -119,7 +120,7 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	reader.r = bufio.NewReader(reader.file)
 	reader.offset = file.startOffset
 	for reader.offset < offset {
-		if _, err := reader.readMessage(); err != nil {
+		if _, err := reader.Read(); err != nil {
 			return nil, err
 		}
 	}
@@ -129,12 +130,20 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	return &reader, nil
 }
 
-func (r *Reader) Read() (msg []byte, offset uint64, err error) {
-	msg, err = r.readMessage()
+func (r *Reader) Read() (msg []byte, err error) {
+	msg, offset, err := readMessage(r.r)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	return msg, r.offset, nil
+	if offset != r.offset {
+		return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
+	}
+	r.offset++
+	return msg, nil
+}
+
+func (r *Reader) Offset() uint64 {
+	return r.offset
 }
 
 func (r *Reader) Close() {

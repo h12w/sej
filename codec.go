@@ -7,63 +7,58 @@ import (
 	"io"
 )
 
-func (w *Writer) writeMessage(msg []byte) error {
-	if err := writeUint64(w.w, w.offset); err != nil {
+func writeMessage(w io.Writer, msg []byte, offset uint64) error {
+	if err := writeUint64(w, offset); err != nil {
 		return err
 	}
-	if err := w.writeCRC(msg); err != nil {
+	if err := writeCRC(w, msg); err != nil {
 		return err
 	}
 	size := int32(len(msg))
-	if err := w.writeInt32(size); err != nil {
+	if err := writeInt32(w, size); err != nil {
 		return err
 	}
-	if _, err := w.w.Write(msg); err != nil {
+	if _, err := w.Write(msg); err != nil {
 		return err
 	}
-	if err := w.writeInt32(size); err != nil {
+	if err := writeInt32(w, size); err != nil {
 		return err
 	}
-	w.offset++
 	return nil
 }
 
-func (r *Reader) readMessage() (msg []byte, _ error) {
-	offset, err := readUint64(r.r)
+func readMessage(r io.Reader) (msg []byte, offset uint64, _ error) {
+	offset, err := readUint64(r)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	if offset != r.offset {
-		return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
-	}
-	crc, err := r.readUint32()
+	crc, err := readUint32(r)
 	if err != nil {
-		return nil, err
+		return nil, offset, err
 	}
-	size, err := readInt32(r.r)
+	size, err := readInt32(r)
 	if err != nil {
-		return nil, err
+		return nil, offset, err
 	}
 	msg = make([]byte, int(size))
-	n, err := io.ReadFull(r.r, msg)
+	n, err := io.ReadFull(r, msg)
 	if err != nil {
-		return nil, err
+		return nil, offset, err
 	}
 	if n != int(size) {
-		return nil, errors.New("message is truncated")
+		return nil, offset, errors.New("message is truncated")
 	}
-	size2, err := readInt32(r.r)
+	size2, err := readInt32(r)
 	if err != nil {
-		return nil, err
+		return nil, offset, err
 	}
 	if size != size2 {
-		return nil, errors.New("data corruption detected by size2")
+		return nil, offset, errors.New("data corruption detected by size2")
 	}
 	if crc != crc32.ChecksumIEEE(msg) {
-		return nil, errors.New("data corruption detected by CRC")
+		return nil, offset, errors.New("data corruption detected by CRC")
 	}
-	r.offset++
-	return msg, nil
+	return msg, offset, nil
 }
 
 func writeUint64(w io.Writer, i uint64) error {
@@ -84,8 +79,8 @@ func readUint64(r io.Reader) (uint64, error) {
 		uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7]), nil
 }
 
-func (w *Writer) writeInt32(i int32) error {
-	_, err := w.w.Write([]byte{byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
+func writeInt32(w io.Writer, i int32) error {
+	_, err := w.Write([]byte{byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
 	return err
 }
 
@@ -101,14 +96,14 @@ func readInt32(r io.Reader) (int32, error) {
 	return int32(b[0])<<24 | int32(b[1])<<16 | int32(b[2])<<8 | int32(b[3]), nil
 }
 
-func (w *Writer) writeUint32(i uint32) error {
-	_, err := w.w.Write([]byte{byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
+func writeUint32(w io.Writer, i uint32) error {
+	_, err := w.Write([]byte{byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
 	return err
 }
 
-func (r *Reader) readUint32() (uint32, error) {
+func readUint32(r io.Reader) (uint32, error) {
 	var b [4]byte
-	n, err := io.ReadFull(r.r, b[:])
+	n, err := io.ReadFull(r, b[:])
 	if err != nil {
 		return 0, err
 	}
@@ -118,6 +113,6 @@ func (r *Reader) readUint32() (uint32, error) {
 	return uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3]), nil
 }
 
-func (w *Writer) writeCRC(data []byte) error {
-	return w.writeUint32(crc32.ChecksumIEEE(data))
+func writeCRC(w io.Writer, data []byte) error {
+	return writeUint32(w, crc32.ChecksumIEEE(data))
 }
