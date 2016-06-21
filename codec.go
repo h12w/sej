@@ -1,7 +1,6 @@
 package fq
 
 import (
-	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -56,17 +55,17 @@ func readMessage(r io.Reader) (msg []byte, offset uint64, _ error) {
 		return nil, offset, err
 	}
 	if n != int(size) {
-		return nil, offset, errors.New("message is truncated")
+		return nil, offset, fmt.Errorf("message is truncated at %d", offset)
 	}
 	size2, err := readInt32(r)
 	if err != nil {
 		return nil, offset, err
 	}
 	if size != size2 {
-		return nil, offset, errors.New("data corruption detected by size2")
+		return nil, offset, fmt.Errorf("data corruption detected by size2 at %d", offset)
 	}
 	if crc != crc32.ChecksumIEEE(msg) {
-		return nil, offset, errors.New("data corruption detected by CRC")
+		return nil, offset, fmt.Errorf("data corruption detected by CRC at %d", offset)
 	}
 	return msg, offset, nil
 }
