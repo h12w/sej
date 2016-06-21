@@ -27,6 +27,7 @@ TODO
 ### Reader
 
 * Search offset (done)
+* Read segment files (done)
 * Tail/file/dir monitoring
 * Offset persistence
 * Lock to prevent deletion
@@ -34,7 +35,7 @@ TODO
 ### Writer
 
 * Write from the last offset (done)
+* Segmentation (done)
 * startup corruption detection
 * startup corruption correction
-* Segmentation
 * Lock to prevent other writer

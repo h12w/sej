@@ -8,20 +8,21 @@ import (
 )
 
 func TestAppendRead(t *testing.T) {
+	maxFileSize := 10000
 	path := newTestPath(t)
 	defer os.RemoveAll(path)
 	var messages []string
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 500; i++ {
 		messages = append(messages, strconv.Itoa(i))
 	}
 
 	{
-		w, err := NewWriter(path)
+		w, err := NewWriter(path, maxFileSize)
 		if err != nil {
 			t.Fatal(err)
 			return
 		}
-		for i := 0; i < 500; i++ {
+		for i := 0; i < 250; i++ {
 			msg := messages[i]
 			offset, err := w.Append([]byte(msg))
 			if err != nil {
@@ -40,12 +41,12 @@ func TestAppendRead(t *testing.T) {
 	}
 
 	{
-		w, err := NewWriter(path)
+		w, err := NewWriter(path, maxFileSize)
 		if err != nil {
 			t.Fatal(err)
 			return
 		}
-		for i := 500; i < 1000; i++ {
+		for i := 250; i < 500; i++ {
 			msg := messages[i]
 			offset, err := w.Append([]byte(msg))
 			if err != nil {

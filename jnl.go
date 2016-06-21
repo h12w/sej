@@ -1,6 +1,7 @@
 package fq
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"sort"
@@ -19,6 +20,10 @@ type (
 const (
 	journalFileExt = ".jnl"
 )
+
+func createNewJournalFile(dir string, offset uint64) (*os.File, error) {
+	return os.Create(path.Join(dir, fmt.Sprintf("%016x"+journalFileExt, offset)))
+}
 
 func getJournalFiles(dir string) (files journalFiles, _ error) {
 	f, err := os.Open(dir)

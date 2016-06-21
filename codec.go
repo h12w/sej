@@ -58,7 +58,7 @@ func readMessage(r io.Reader) (msg []byte, offset uint64, _ error) {
 		return nil, offset, fmt.Errorf("message is truncated at %d", offset)
 	}
 	size2, err := readInt32(r)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return nil, offset, err
 	}
 	if size != size2 {
