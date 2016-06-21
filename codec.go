@@ -8,16 +8,20 @@ import (
 )
 
 func (w *Writer) writeMessage(msg []byte) error {
-	if err := w.writeUint64(w.offset); err != nil {
-		return err
-	}
-	if err := w.writeInt32(int32(len(msg))); err != nil {
+	if err := writeUint64(w.w, w.offset); err != nil {
 		return err
 	}
 	if err := w.writeCRC(msg); err != nil {
 		return err
 	}
+	size := int32(len(msg))
+	if err := w.writeInt32(size); err != nil {
+		return err
+	}
 	if _, err := w.w.Write(msg); err != nil {
+		return err
+	}
+	if err := w.writeInt32(size); err != nil {
 		return err
 	}
 	w.offset++
@@ -25,18 +29,18 @@ func (w *Writer) writeMessage(msg []byte) error {
 }
 
 func (r *Reader) readMessage() (msg []byte, _ error) {
-	offset, err := r.readUint64()
+	offset, err := readUint64(r.r)
 	if err != nil {
 		return nil, err
 	}
 	if offset != r.offset {
 		return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
 	}
-	size, err := r.readInt32()
+	crc, err := r.readUint32()
 	if err != nil {
 		return nil, err
 	}
-	crc, err := r.readUint32()
+	size, err := readInt32(r.r)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +52,13 @@ func (r *Reader) readMessage() (msg []byte, _ error) {
 	if n != int(size) {
 		return nil, errors.New("message is truncated")
 	}
+	size2, err := readInt32(r.r)
+	if err != nil {
+		return nil, err
+	}
+	if size != size2 {
+		return nil, errors.New("data corruption detected by size2")
+	}
 	if crc != crc32.ChecksumIEEE(msg) {
 		return nil, errors.New("data corruption detected by CRC")
 	}
@@ -55,14 +66,14 @@ func (r *Reader) readMessage() (msg []byte, _ error) {
 	return msg, nil
 }
 
-func (w *Writer) writeUint64(i uint64) error {
-	_, err := w.w.Write([]byte{byte(i >> 56), byte(i >> 48), byte(i >> 40), byte(i >> 32), byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
+func writeUint64(w io.Writer, i uint64) error {
+	_, err := w.Write([]byte{byte(i >> 56), byte(i >> 48), byte(i >> 40), byte(i >> 32), byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
 	return err
 }
 
-func (r *Reader) readUint64() (uint64, error) {
+func readUint64(r io.Reader) (uint64, error) {
 	var b [8]byte
-	n, err := io.ReadFull(r.r, b[:])
+	n, err := io.ReadFull(r, b[:])
 	if err != nil {
 		return 0, err
 	}
@@ -78,9 +89,9 @@ func (w *Writer) writeInt32(i int32) error {
 	return err
 }
 
-func (r *Reader) readInt32() (int32, error) {
+func readInt32(r io.Reader) (int32, error) {
 	var b [4]byte
-	n, err := io.ReadFull(r.r, b[:])
+	n, err := io.ReadFull(r, b[:])
 	if err != nil {
 		return 0, err
 	}
