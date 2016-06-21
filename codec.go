@@ -7,6 +7,16 @@ import (
 	"io"
 )
 
+const (
+	seekSet = iota
+	seekCur
+	seekEnd
+)
+
+const (
+	metaSize = 20
+)
+
 func writeMessage(w io.Writer, msg []byte, offset uint64) error {
 	if err := writeUint64(w, offset); err != nil {
 		return err
@@ -59,6 +69,20 @@ func readMessage(r io.Reader) (msg []byte, offset uint64, _ error) {
 		return nil, offset, errors.New("data corruption detected by CRC")
 	}
 	return msg, offset, nil
+}
+
+func readMessageBackward(r io.ReadSeeker) (msg []byte, offset uint64, _ error) {
+	if _, err := r.Seek(-4, seekCur); err != nil {
+		return nil, 0, err
+	}
+	size, err := readInt32(r)
+	if err != nil {
+		return nil, 0, err
+	}
+	if _, err := r.Seek(-metaSize-int64(size), seekCur); err != nil {
+		return nil, 0, err
+	}
+	return readMessage(r)
 }
 
 func writeUint64(w io.Writer, i uint64) error {

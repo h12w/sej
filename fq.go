@@ -43,33 +43,21 @@ func NewWriter(dir string) (*Writer, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, err := w.file.Seek(-4, 2); err != nil {
+		if _, err := w.file.Seek(0, os.SEEK_END); err != nil {
 			return nil, err
 		}
-		size, err := readInt32(w.file)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := w.file.Seek(-20-int64(size), 2); err != nil {
-			return nil, err
-		}
-		offset, err := readUint64(w.file)
+		_, offset, err := readMessageBackward(w.file)
 		if err != nil {
 			return nil, err
 		}
 		w.offset = offset + 1
-		if _, err := w.file.Seek(0, 2); err != nil {
-			return nil, err
-		}
-		w.w = bufio.NewWriter(w.file)
 	} else {
-		w.offset = 0
 		w.file, err = os.Create(path.Join(dir, fmt.Sprintf("%016x"+journalFileExt, w.offset)))
 		if err != nil {
 			return nil, err
 		}
-		w.w = bufio.NewWriter(w.file)
 	}
+	w.w = bufio.NewWriter(w.file)
 	return &w, nil
 }
 
