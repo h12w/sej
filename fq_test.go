@@ -46,7 +46,7 @@ func TestWriteReopen(t *testing.T) {
 func TestWriteSegment(t *testing.T) {
 	path := newTestPath(t)
 	defer os.RemoveAll(path)
-	messages := []string{"a", "b", "c"}
+	messages := []string{"a", "b", "c", "d", "e"}
 
 	w := newTestWriter(t, path, (metaSize+1)*2)
 	writeTestMessages(t, w, messages...)
@@ -56,7 +56,7 @@ func TestWriteSegment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(journalFiles) != 2 {
+	if len(journalFiles) != 3 {
 		t.Fatalf("expect 2 journal files but got %d", len(journalFiles))
 	}
 
