@@ -8,6 +8,8 @@ import (
 	"math"
 	"os"
 	"sort"
+
+	"gopkg.in/fsnotify.v1"
 )
 
 type (
@@ -26,6 +28,7 @@ type (
 		file         *os.File
 		journalFiles journalFiles
 		journalIndex int
+		watcher      *fsnotify.Watcher
 	}
 )
 
@@ -108,7 +111,10 @@ func (w *Writer) Close() error {
 }
 
 func NewReader(dir string, offset uint64) (*Reader, error) {
-	var err error
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, err
+	}
 	files, err := getJournalFiles(dir)
 	if err != nil {
 		return nil, err
@@ -123,9 +129,9 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 		dir:          dir,
 		journalFiles: files,
 		journalIndex: journalIndex,
+		watcher:      watcher,
 	}
-	reader.file, err = os.Open(file.fileName)
-	if err != nil {
+	if err := reader.openFile(file.fileName); err != nil {
 		return nil, err
 	}
 	reader.r = bufio.NewReader(reader.file)
@@ -144,18 +150,38 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 func (r *Reader) Read() (msg []byte, err error) {
 	msg, offset, err := readMessage(r.r)
 	if err == io.EOF {
+		// TODO: reload journalFiles
 		if r.journalIndex < len(r.journalFiles)-1 && r.offset == r.journalFiles[r.journalIndex+1].startOffset {
-			r.Close()
+			r.closeFile()
 			r.journalIndex++
 			journalFile := &r.journalFiles[r.journalIndex]
-			r.file, err = os.Open(journalFile.fileName)
-			if err != nil {
+			if err := r.openFile(journalFile.fileName); err != nil {
 				return nil, err
 			}
 			r.r = bufio.NewReader(r.file)
 			return r.Read()
 		}
-		return nil, err // TODO: watch and tail this file
+		if err := r.reopenFile(); err != nil {
+			return nil, err
+		}
+		msg, offset, err := readMessage(r.r)
+		if err == io.EOF && offset == r.offset+1 {
+			return msg, nil
+		} else if err != nil {
+			return nil, err
+		}
+		/*
+			if err == io.EOF {
+				if err := r.waitForFileAppend(); err != nil {
+					return nil, err
+				}
+				return r.Read()
+			}
+		*/
+		if offset != r.offset {
+			return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
+		}
+		return msg, nil
 	} else if err != nil {
 		return nil, err
 	}
@@ -171,5 +197,53 @@ func (r *Reader) Offset() uint64 {
 }
 
 func (r *Reader) Close() {
+	r.watcher.Close()
+	r.closeFile()
+}
+
+func (r *Reader) closeFile() {
 	r.file.Close()
+}
+
+func (r *Reader) openFile(name string) error {
+	var err error
+	r.file, err = os.Open(name)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Reader) reopenFile() error {
+	journalFile := &r.journalFiles[r.journalIndex]
+	offset := r.offset
+	r.closeFile()
+	if err := r.openFile(journalFile.fileName); err != nil {
+		return err
+	}
+	r.r = bufio.NewReader(r.file)
+
+	r.offset = journalFile.startOffset
+	for r.offset < offset {
+		_, _, err := readMessage(r.r)
+		if err != nil {
+			return err
+		}
+		r.offset++
+	}
+	return nil
+}
+
+func (r *Reader) waitForFileAppend() error {
+	r.watcher.Add(r.file.Name())
+	defer r.watcher.Remove(r.file.Name())
+	select {
+	case event := <-r.watcher.Events:
+		if event.Op&fsnotify.Write == fsnotify.Write {
+			return r.reopenFile()
+		}
+	case err := <-r.watcher.Errors:
+		return err
+	}
+	return nil
 }

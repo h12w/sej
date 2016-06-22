@@ -89,7 +89,7 @@ func TestAppendRead(t *testing.T) {
 	for i := 250; i < 500; i++ {
 		msg, err := r.Read()
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("%d: %v", i, err)
 			return
 		}
 		if int(r.Offset()) != i+1 {
