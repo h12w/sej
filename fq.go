@@ -72,28 +72,33 @@ func NewWriter(dir string, maxFileSize int) (*Writer, error) {
 	return &w, nil
 }
 
-func (w *Writer) Append(msg []byte) (offset uint64, err error) {
+func (w *Writer) Append(msg []byte) error {
 	size := len(msg)
 	if size > math.MaxInt32 {
-		return w.offset, errors.New("message is too long")
+		return errors.New("message is too long")
 	}
 	if err := writeMessage(w.w, msg, w.offset); err != nil {
-		return w.offset, err
+		return err
 	}
 	w.offset++
 	w.fileSize += metaSize + len(msg)
 	if w.fileSize >= w.maxFileSize {
 		if err := w.Close(); err != nil {
-			return w.offset, err
+			return err
 		}
+		var err error
 		w.file, err = createNewJournalFile(w.dir, w.offset)
 		if err != nil {
-			return w.offset, err
+			return err
 		}
 		w.fileSize = 0
 		w.w = bufio.NewWriter(w.file)
 	}
-	return w.offset, nil
+	return nil
+}
+
+func (w *Writer) Offset() uint64 {
+	return w.offset
 }
 
 func (w *Writer) Flush(offset uint64) error {
