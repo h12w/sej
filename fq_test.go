@@ -8,7 +8,7 @@ import (
 )
 
 func TestAppendRead(t *testing.T) {
-	maxFileSize := 10000
+	maxFileSize := 5500
 	path := newTestPath(t)
 	defer os.RemoveAll(path)
 	var messages []string
@@ -40,6 +40,28 @@ func TestAppendRead(t *testing.T) {
 		}
 	}
 
+	r, err := NewReader(path, 0)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer r.Close()
+	for i := 0; i < 250; i++ {
+		msg, err := r.Read()
+		if err != nil {
+			t.Fatal(err)
+			return
+		}
+		if int(r.Offset()) != i+1 {
+			t.Fatalf("expect offset %d, got %d", i+1, r.Offset())
+			return
+		}
+		if string(msg) != messages[i] {
+			t.Fatalf("expect %s, got %s", messages[i], string(msg))
+			return
+		}
+	}
+
 	{
 		w, err := NewWriter(path, maxFileSize)
 		if err != nil {
@@ -64,27 +86,19 @@ func TestAppendRead(t *testing.T) {
 		}
 	}
 
-	for readFrom := 0; readFrom < 5; readFrom++ {
-		r, err := NewReader(path, uint64(readFrom))
+	for i := 250; i < 500; i++ {
+		msg, err := r.Read()
 		if err != nil {
 			t.Fatal(err)
 			return
 		}
-		defer r.Close()
-		for i := readFrom; i < len(messages); i++ {
-			msg, err := r.Read()
-			if err != nil {
-				t.Fatal(err)
-				return
-			}
-			if int(r.Offset()) != i+1 {
-				t.Fatalf("expect offset %d, got %d", i+1, r.Offset())
-				return
-			}
-			if string(msg) != messages[i] {
-				t.Fatalf("expect %s, got %s", messages[i], string(msg))
-				return
-			}
+		if int(r.Offset()) != i+1 {
+			t.Fatalf("expect offset %d, got %d", i+1, r.Offset())
+			return
+		}
+		if string(msg) != messages[i] {
+			t.Fatalf("expect %s, got %s", messages[i], string(msg))
+			return
 		}
 	}
 }

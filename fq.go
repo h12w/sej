@@ -87,6 +87,7 @@ func (w *Writer) Append(msg []byte) (offset uint64, err error) {
 		if err != nil {
 			return w.offset, err
 		}
+		w.fileSize = 0
 		w.w = bufio.NewWriter(w.file)
 	}
 	return w.offset, nil
