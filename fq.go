@@ -150,6 +150,11 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 func (r *Reader) Read() (msg []byte, err error) {
 	msg, offset, err := readMessage(r.r)
 	if err == io.EOF {
+		files, err := getJournalFiles(r.dir)
+		if err != nil {
+			return nil, err
+		}
+		r.journalFiles = files
 		// TODO: reload journalFiles
 		if r.journalIndex < len(r.journalFiles)-1 && r.offset == r.journalFiles[r.journalIndex+1].startOffset {
 			r.closeFile()
