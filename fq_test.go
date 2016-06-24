@@ -3,6 +3,7 @@ package fq
 import (
 	"io/ioutil"
 	"os"
+	"reflect"
 	"strconv"
 	"testing"
 )
@@ -27,6 +28,13 @@ func TestWriteReopen(t *testing.T) {
 	messages := []string{"a", "bc"}
 
 	{
+		// create empty file only
+		w := newTestWriter(t, path, 9999)
+		if err := w.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	{
 		w := newTestWriter(t, path, 9999)
 		writeTestMessages(t, w, messages[0])
 		if err := w.Close(); err != nil {
@@ -44,23 +52,56 @@ func TestWriteReopen(t *testing.T) {
 }
 
 func TestWriteSegment(t *testing.T) {
-	path := newTestPath(t)
-	defer os.RemoveAll(path)
-	messages := []string{"a", "b", "c", "d", "e"}
+	for _, testcase := range []struct {
+		messages  []string
+		maxSize   int
+		fileSizes []int
+	}{
+		{
+			messages:  []string{"a", "ab"},
+			maxSize:   0,
+			fileSizes: []int{metaSize + 1, metaSize + 2, 0},
+		},
+		{
+			messages:  []string{"a"},
+			maxSize:   (metaSize + 1),
+			fileSizes: []int{metaSize + 1, 0},
+		},
+		{
+			messages:  []string{"a"},
+			maxSize:   (metaSize + 1) + 1,
+			fileSizes: []int{metaSize + 1},
+		},
+		{
+			messages:  []string{"a", "bc"},
+			maxSize:   (metaSize + 1) + (metaSize + 2),
+			fileSizes: []int{(metaSize + 1) + (metaSize + 2), 0},
+		},
+		{
+			messages:  []string{"a", "bc"},
+			maxSize:   (metaSize + 1) + (metaSize + 2) + 1,
+			fileSizes: []int{(metaSize + 1) + (metaSize + 2)},
+		},
+	} {
+		func() {
+			path := newTestPath(t)
+			defer os.RemoveAll(path)
+			w := newTestWriter(t, path, testcase.maxSize)
+			writeTestMessages(t, w, testcase.messages...)
+			closeTestWriter(t, w)
 
-	w := newTestWriter(t, path, (metaSize+1)*2)
-	writeTestMessages(t, w, messages...)
-	closeTestWriter(t, w)
+			journalFiles, err := getJournalFiles(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sizes := journalFiles.sizes(t)
+			if !reflect.DeepEqual(sizes, testcase.fileSizes) {
+				t.Fatalf("expect journal files with size %v but got %d", testcase.fileSizes, sizes)
+			}
 
-	journalFiles, err := getJournalFiles(path)
-	if err != nil {
-		t.Fatal(err)
+			verifyReadMessages(t, path, testcase.messages...)
+		}()
 	}
-	if len(journalFiles) != 3 {
-		t.Fatalf("expect 2 journal files but got %d", len(journalFiles))
-	}
-
-	verifyReadMessages(t, path, messages...)
 }
 
 // TODO
@@ -243,4 +284,20 @@ func flushTestWriter(t *testing.T, w *Writer) {
 	if err := w.Flush(w.Offset()); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func (f *journalFile) size(t *testing.T) int {
+	info, err := os.Stat(f.fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return int(info.Size())
+}
+
+func (fs journalFiles) sizes(t *testing.T) []int {
+	sizes := make([]int, len(fs))
+	for i := range fs {
+		sizes[i] = fs[i].size(t)
+	}
+	return sizes
 }
