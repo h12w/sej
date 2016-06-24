@@ -1,6 +1,7 @@
 package fq
 
 import (
+	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -97,4 +98,58 @@ func TestWriteReopen(t *testing.T) {
 			verifyReadMessages(t, path, messages...)
 		}()
 	}
+}
+
+func readMessages(t *testing.T, path string, start uint64, n int) (messages []string) {
+	r, err := NewReader(path, start)
+	if err != nil {
+		t.Fatal(err)
+		return nil
+	}
+	for i := 0; i < n; i++ {
+		msg, err := r.Read()
+		if err != nil {
+			t.Fatal(err)
+		}
+		offset := start + uint64(i) + 1
+		if r.Offset() != offset {
+			t.Fatalf("offset: expect %d but read %d", offset, r.Offset())
+		}
+		messages = append(messages, string(msg))
+	}
+	return messages
+}
+
+func verifyReadMessages(t *testing.T, path string, messages ...string) {
+	gotMessages := readMessages(t, path, 0, len(messages))
+	for i, expected := range messages {
+		actual := gotMessages[i]
+		if actual != expected {
+			t.Fatalf("expect %s but got %s", expected, actual)
+		}
+	}
+}
+
+func (f *journalFile) size(t *testing.T) int {
+	info, err := os.Stat(f.fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return int(info.Size())
+}
+
+func (fs journalFiles) sizes(t *testing.T) []int {
+	sizes := make([]int, len(fs))
+	for i := range fs {
+		sizes[i] = fs[i].size(t)
+	}
+	return sizes
+}
+
+func newTestPath(t *testing.T) string {
+	path, err := ioutil.TempDir(".", "test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
