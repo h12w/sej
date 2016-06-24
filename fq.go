@@ -19,7 +19,7 @@ type (
 		w           *bufio.Writer
 		file        *os.File
 		fileSize    int
-		maxFileSize int
+		segmentSize int
 	}
 	Reader struct {
 		dir          string
@@ -32,11 +32,11 @@ type (
 	}
 )
 
-func NewWriter(dir string, maxFileSize int) (*Writer, error) {
+func NewWriter(dir string, segmentSize int) (*Writer, error) {
 	var err error
 	w := Writer{
 		dir:         dir,
-		maxFileSize: maxFileSize,
+		segmentSize: segmentSize,
 	}
 	names, err := getJournalFiles(dir)
 	if err != nil {
@@ -82,7 +82,7 @@ func (w *Writer) Append(msg []byte) error {
 	}
 	w.offset++
 	w.fileSize += metaSize + len(msg)
-	if w.fileSize >= w.maxFileSize {
+	if w.fileSize >= w.segmentSize {
 		if err := w.Close(); err != nil {
 			return err
 		}

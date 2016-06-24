@@ -22,35 +22,6 @@ func TestWriteFlush(t *testing.T) {
 	verifyReadMessages(t, path, messages...)
 }
 
-func TestWriteReopen(t *testing.T) {
-	path := newTestPath(t)
-	defer os.RemoveAll(path)
-	messages := []string{"a", "bc"}
-
-	{
-		// create empty file only
-		w := newTestWriter(t, path, 9999)
-		if err := w.Close(); err != nil {
-			t.Fatal(err)
-		}
-	}
-	{
-		w := newTestWriter(t, path, 9999)
-		writeTestMessages(t, w, messages[0])
-		if err := w.Close(); err != nil {
-			t.Fatal(err)
-		}
-	}
-	{
-		w := newTestWriter(t, path, 9999)
-		writeTestMessages(t, w, messages[1])
-		if err := w.Close(); err != nil {
-			t.Fatal(err)
-		}
-	}
-	verifyReadMessages(t, path, messages...)
-}
-
 func TestWriteSegment(t *testing.T) {
 	for _, testcase := range []struct {
 		messages  []string
@@ -100,6 +71,32 @@ func TestWriteSegment(t *testing.T) {
 			}
 
 			verifyReadMessages(t, path, testcase.messages...)
+		}()
+	}
+}
+
+func TestWriteReopen(t *testing.T) {
+	messages := []string{"a", "bc", "def"}
+	// test cases for multiple and single segments
+	for _, segmentSize := range []int{0, 9999} {
+		func() {
+			path := newTestPath(t)
+			defer os.RemoveAll(path)
+			{
+				// test reopening an empty file
+				w := newTestWriter(t, path, segmentSize)
+				if err := w.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, msg := range messages {
+				w := newTestWriter(t, path, segmentSize)
+				writeTestMessages(t, w, msg)
+				if err := w.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			verifyReadMessages(t, path, messages...)
 		}()
 	}
 }
