@@ -1,6 +1,7 @@
 package fq
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -48,7 +49,18 @@ func getJournalFiles(dir string) (files journalFiles, _ error) {
 			fileName:    path.Join(dir, name),
 		})
 	}
+	if len(files) == 0 {
+		f, err := createNewJournalFile(dir, 0)
+		if err != nil {
+			return nil, err
+		}
+		f.Close()
+		return getJournalFiles(dir)
+	}
 	sort.Sort(files)
+	if len(files) == 0 {
+		return nil, errors.New("no journal files found or created")
+	}
 	return files, nil
 }
 

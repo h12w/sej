@@ -24,6 +24,8 @@ All integers are written in the big endian format.
 TODO
 ----
 
+* A better name: sej?
+
 ### Reader
 
 * Search offset (done)
