@@ -30,32 +30,37 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	i := sort.Search(len(files), func(i int) bool { return files[i].startOffset > offset })
-	if i == 0 {
-		return nil, errors.New("offset is too small")
-	}
-	journalIndex := i - 1
-	file := &files[journalIndex]
-	reader := Reader{
-		dir:          dir,
-		journalFiles: files,
-		journalIndex: journalIndex,
-		watcher:      watcher,
-	}
-	if err := reader.openFile(file.fileName); err != nil {
-		return nil, err
-	}
-	reader.r = bufio.NewReader(reader.file)
-	reader.offset = file.startOffset
-	for reader.offset < offset {
-		if _, err := reader.Read(); err != nil {
+	if len(files) == 0 {
+		return nil, errors.New("no journal files found")
+	} else {
+		i := sort.Search(len(files), func(i int) bool { return files[i].startOffset > offset })
+		if i == 0 {
+			return nil, errors.New("offset is too small")
+		}
+
+		journalIndex := i - 1
+		file := &files[journalIndex]
+		reader := Reader{
+			dir:          dir,
+			journalFiles: files,
+			journalIndex: journalIndex,
+			watcher:      watcher,
+		}
+		if err := reader.openFile(file.fileName); err != nil {
 			return nil, err
 		}
+		reader.r = bufio.NewReader(reader.file)
+		reader.offset = file.startOffset
+		for reader.offset < offset {
+			if _, err := reader.Read(); err != nil {
+				return nil, err
+			}
+		}
+		if reader.offset != offset {
+			return nil, fmt.Errorf("fail to find offset %d", offset)
+		}
+		return &reader, nil
 	}
-	if reader.offset != offset {
-		return nil, fmt.Errorf("fail to find offset %d", offset)
-	}
-	return &reader, nil
 }
 
 func (r *Reader) Read() (msg []byte, err error) {

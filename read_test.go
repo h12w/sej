@@ -40,6 +40,29 @@ func TestReadOffset(t *testing.T) {
 	}
 }
 
+func TestReadFirst(t *testing.T) {
+	path := newTestPath(t)
+	defer os.RemoveAll(path)
+	r, err := NewReader(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	go func() {
+		w := newTestWriter(t, path, 9999)
+		writeTestMessages(t, w, "a")
+		closeTestWriter(t, w)
+	}()
+	msg, err := r.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualMsg, expectedMsg := string(msg), "a"
+	if actualMsg != expectedMsg {
+		t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
+	}
+}
+
 func writeTestMessages(t *testing.T, w *Writer, messages ...string) {
 	start := w.Offset()
 	for i, msg := range messages {

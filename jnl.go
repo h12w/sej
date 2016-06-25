@@ -26,7 +26,7 @@ func createNewJournalFile(dir string, offset uint64) (*os.File, error) {
 }
 
 func getJournalFiles(dir string) (files journalFiles, _ error) {
-	f, err := os.Open(dir)
+	f, err := openOrCreateDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -55,3 +55,17 @@ func getJournalFiles(dir string) (files journalFiles, _ error) {
 func (a journalFiles) Len() int           { return len(a) }
 func (a journalFiles) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a journalFiles) Less(i, j int) bool { return a[i].startOffset < a[j].startOffset }
+
+func openOrCreateDir(dir string) (*os.File, error) {
+	f, err := os.Open(dir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		if nil != os.MkdirAll(dir, 0755) {
+			return nil, err
+		}
+		f, err = os.Open(dir)
+	}
+	return f, err
+}
