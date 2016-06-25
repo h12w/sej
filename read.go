@@ -7,8 +7,6 @@ import (
 	"io"
 	"os"
 	"sort"
-
-	"gopkg.in/fsnotify.v1"
 )
 
 type Reader struct {
@@ -18,14 +16,9 @@ type Reader struct {
 	file         *os.File
 	journalFiles journalFiles
 	journalIndex int
-	watcher      *fsnotify.Watcher
 }
 
 func NewReader(dir string, offset uint64) (*Reader, error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
 	files, err := getJournalFiles(dir)
 	if err != nil {
 		return nil, err
@@ -41,7 +34,6 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 		dir:          dir,
 		journalFiles: files,
 		journalIndex: journalIndex,
-		watcher:      watcher,
 	}
 	if err := reader.openFile(file.fileName); err != nil {
 		return nil, err
@@ -62,6 +54,12 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 func (r *Reader) Read() (msg []byte, err error) {
 	msg, offset, err := readMessage(r.r)
 	if err == io.EOF {
+		/*
+			watcher, err := fsnotify.NewWatcher()
+			if err != nil {
+				return nil, err
+			}
+		*/
 		files, err := getJournalFiles(r.dir)
 		if err != nil {
 			return nil, err
@@ -86,20 +84,10 @@ func (r *Reader) Read() (msg []byte, err error) {
 		} else if err != nil {
 			return nil, err
 		}
-		/*
-			if err == io.EOF {
-				if err := r.waitForFileAppend(); err != nil {
-					return nil, err
-				}
-				return r.Read()
-			}
-		*/
 		if offset != r.offset {
 			return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
 		}
 		return msg, nil
-	} else if err != nil {
-		return nil, err
 	}
 	if offset != r.offset {
 		return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
@@ -113,7 +101,6 @@ func (r *Reader) Offset() uint64 {
 }
 
 func (r *Reader) Close() {
-	r.watcher.Close()
 	r.closeFile()
 }
 
@@ -150,6 +137,7 @@ func (r *Reader) reopenFile() error {
 	return nil
 }
 
+/*
 func (r *Reader) waitForFileAppend() error {
 	r.watcher.Add(r.file.Name())
 	defer r.watcher.Remove(r.file.Name())
@@ -163,3 +151,4 @@ func (r *Reader) waitForFileAppend() error {
 	}
 	return nil
 }
+*/

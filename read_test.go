@@ -41,8 +41,12 @@ func TestReadOffset(t *testing.T) {
 }
 
 func TestReadFirst(t *testing.T) {
+	done := make(chan bool)
 	path := newTestPath(t)
-	defer os.RemoveAll(path)
+	defer func() {
+		<-done
+		os.RemoveAll(path)
+	}()
 	r, err := NewReader(path, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -52,6 +56,7 @@ func TestReadFirst(t *testing.T) {
 		w := newTestWriter(t, path, 9999)
 		writeTestMessages(t, w, "a")
 		closeTestWriter(t, w)
+		done <- true
 	}()
 	msg, err := r.Read()
 	if err != nil {
