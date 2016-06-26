@@ -64,6 +64,7 @@ func (r *Reader) Read() (msg []byte, err error) {
 		if err != nil {
 			return nil, err
 		}
+
 		r.journalFiles = files
 		if r.journalIndex < len(r.journalFiles)-1 && r.offset == r.journalFiles[r.journalIndex+1].startOffset {
 			r.closeFile()
@@ -118,22 +119,19 @@ func (r *Reader) openFile(name string) error {
 }
 
 func (r *Reader) reopenFile() error {
-	journalFile := &r.journalFiles[r.journalIndex]
-	offset := r.offset
+	fileName := r.file.Name()
+	fileOffset, err := r.file.Seek(0, os.SEEK_CUR)
+	if err != nil {
+		return err
+	}
 	r.closeFile()
-	if err := r.openFile(journalFile.fileName); err != nil {
+	if err := r.openFile(fileName); err != nil {
+		return err
+	}
+	if _, err := r.file.Seek(fileOffset, os.SEEK_SET); err != nil {
 		return err
 	}
 	r.r = bufio.NewReader(r.file)
-
-	r.offset = journalFile.startOffset
-	for r.offset < offset {
-		_, _, err := readMessage(r.r)
-		if err != nil {
-			return err
-		}
-		r.offset++
-	}
 	return nil
 }
 
