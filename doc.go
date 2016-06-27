@@ -1,4 +1,4 @@
 /*
-Package fq implements a file based persistent queue
+Package sej implements file-based segmented journal (queue)
 */
-package fq
+package sej

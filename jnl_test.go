@@ -1,4 +1,4 @@
-package fq
+package sej
 
 import (
 	"math/rand"

@@ -1,5 +1,5 @@
-fq: file-based persistent queue
-===============================
+sej: File-based Segmented Journal (queue)
+=========================================
 
 File format
 -----------
@@ -23,8 +23,6 @@ All integers are written in the big endian format.
 
 TODO
 ----
-
-* A better name: sej?
 
 ### Reader
 
