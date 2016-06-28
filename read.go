@@ -9,28 +9,38 @@ import (
 )
 
 type Reader struct {
-	dir    string
-	offset uint64
-	r      *bufio.Reader
-	file   *tailFile
+	dir          string
+	offset       uint64
+	r            *bufio.Reader
+	file         io.ReadCloser
+	journalFiles journalFiles
+	journalFile  *journalFile
 }
 
 func NewReader(dir string, offset uint64) (*Reader, error) {
-	files, err := getJournalFiles(dir)
+	journalFiles, err := getJournalFiles(dir)
 	if err != nil {
 		return nil, err
 	}
-	file, err := files.find(offset)
+	journalFile, err := journalFiles.find(offset)
 	if err != nil {
 		return nil, err
 	}
 	reader := Reader{
 		dir: dir,
 	}
-	if err := reader.openFile(file.fileName); err != nil {
+	if journalFiles.isLast(journalFile) {
+		reader.file, err = openTailFile(journalFile.fileName)
+	} else {
+		reader.file, err = os.Open(journalFile.fileName)
+	}
+	if err != nil {
 		return nil, err
 	}
-	reader.offset = file.startOffset
+	reader.r = bufio.NewReader(reader.file)
+	reader.offset = journalFile.startOffset
+	reader.journalFile = journalFile
+	reader.journalFiles = journalFiles
 	for reader.offset < offset {
 		if _, err := reader.Read(); err != nil {
 			return nil, err
@@ -47,22 +57,31 @@ func (r *Reader) Read() (msg []byte, err error) {
 	for {
 		msg, offset, err = readMessage(r.r)
 		if err == io.EOF {
-			files, err := getJournalFiles(r.dir)
-			if err != nil {
-				return nil, err
-			}
-			journalFile, err := files.find(r.offset)
-			if err != nil {
-				return nil, err
-			}
-			if r.file.Name() != journalFile.fileName {
-				r.closeFile()
-				if err := r.openFile(journalFile.fileName); err != nil {
+			if r.journalFiles.isLast(r.journalFile) {
+				journalFiles, err := getJournalFiles(r.dir)
+				if err != nil {
 					return nil, err
 				}
+				r.journalFiles = journalFiles
+				if r.journalFiles.isLast(r.journalFile) {
+					time.Sleep(10 * time.Millisecond)
+					continue // wait for append or new file
+				}
 			}
+			journalFile, err := r.journalFiles.find(r.offset)
+			r.closeFile()
+			if r.journalFiles.isLast(journalFile) {
+				r.file, err = openTailFile(journalFile.fileName)
+			} else {
+				r.file, err = os.Open(journalFile.fileName)
+			}
+			if err != nil {
+				return nil, err
+			}
+			r.r = bufio.NewReader(r.file)
+			r.journalFile = journalFile
 			time.Sleep(10 * time.Millisecond)
-			continue
+			continue // try to read new file
 		} else if err != nil {
 			return nil, err
 		}
@@ -89,16 +108,6 @@ func (r *Reader) closeFile() {
 		r.file = nil
 		r.r = nil
 	}
-}
-
-func (r *Reader) openFile(name string) error {
-	var err error
-	r.file, err = openTailFile(name)
-	if err != nil {
-		return err
-	}
-	r.r = bufio.NewReader(r.file)
-	return nil
 }
 
 type tailFile struct {

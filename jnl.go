@@ -82,6 +82,10 @@ func openOrCreateDir(dir string) (*os.File, error) {
 	return f, err
 }
 
+func (a journalFiles) isLast(f *journalFile) bool {
+	return a[len(a)-1].startOffset == f.startOffset
+}
+
 func (a journalFiles) find(offset uint64) (*journalFile, error) {
 	for i := 0; i < len(a)-1; i++ {
 		if a[i].startOffset <= offset && offset < a[i+1].startOffset {
