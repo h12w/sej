@@ -12,7 +12,7 @@ type Reader struct {
 	dir    string
 	offset uint64
 	r      *bufio.Reader
-	file   *os.File
+	file   *tailFile
 }
 
 func NewReader(dir string, offset uint64) (*Reader, error) {
@@ -47,7 +47,6 @@ func (r *Reader) Read() (msg []byte, err error) {
 	for {
 		msg, offset, err = readMessage(r.r)
 		if err == io.EOF {
-			time.Sleep(10 * time.Millisecond)
 			files, err := getJournalFiles(r.dir)
 			if err != nil {
 				return nil, err
@@ -56,18 +55,14 @@ func (r *Reader) Read() (msg []byte, err error) {
 			if err != nil {
 				return nil, err
 			}
-			if r.file.Name() == journalFile.fileName {
-				if err := r.reopenFile(); err != nil {
-					return nil, err
-				}
-				continue
-			} else {
+			if r.file.Name() != journalFile.fileName {
 				r.closeFile()
 				if err := r.openFile(journalFile.fileName); err != nil {
 					return nil, err
 				}
-				continue
 			}
+			time.Sleep(10 * time.Millisecond)
+			continue
 		} else if err != nil {
 			return nil, err
 		}
@@ -98,7 +93,7 @@ func (r *Reader) closeFile() {
 
 func (r *Reader) openFile(name string) error {
 	var err error
-	r.file, err = os.Open(name)
+	r.file, err = openTailFile(name)
 	if err != nil {
 		return err
 	}
@@ -106,31 +101,53 @@ func (r *Reader) openFile(name string) error {
 	return nil
 }
 
-func (r *Reader) reopenFile() error {
-	if err := reopenFile(r.file); err != nil {
-		return err
-	}
-	r.r = bufio.NewReader(r.file)
-	return nil
+type tailFile struct {
+	*os.File
 }
 
-func reopenFile(file *os.File) error {
-	fileName := file.Name()
-	offset, err := file.Seek(0, os.SEEK_CUR)
+func openTailFile(file string) (*tailFile, error) {
+	f, err := os.Open(file)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	newFile, err := os.Open(fileName)
-	if err != nil {
-		return err
+	return &tailFile{
+		File: f,
+	}, nil
+}
+
+func (f *tailFile) Read(p []byte) (n int, err error) {
+	n, err = f.File.Read(p)
+	if err == io.EOF && n == 0 {
+		oldStat, err := f.File.Stat()
+		if err != nil {
+			return n, io.EOF
+		}
+		oldSize := oldStat.Size()
+		fileName := f.File.Name()
+		newFile, err := os.Open(fileName)
+		if err != nil {
+			return n, io.EOF
+		}
+		newStat, err := newFile.Stat()
+		if err != nil {
+			return n, io.EOF
+		}
+		newSize := newStat.Size()
+		if newSize <= oldSize {
+			newFile.Close()
+			return n, io.EOF
+		}
+		if _, err := newFile.Seek(oldSize, os.SEEK_SET); err != nil {
+			newFile.Close()
+			return n, io.EOF
+		}
+		if err := f.File.Close(); err != nil {
+			return n, io.EOF
+		}
+		f.File = newFile
+		n, err = f.File.Read(p)
+	} else if err != nil {
+		return
 	}
-	if _, err := newFile.Seek(offset, os.SEEK_SET); err != nil {
-		newFile.Close()
-		return err
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-	*file = *newFile
-	return nil
+	return
 }
