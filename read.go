@@ -30,7 +30,6 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	if err := reader.openFile(file.fileName); err != nil {
 		return nil, err
 	}
-	reader.r = bufio.NewReader(reader.file)
 	reader.offset = file.startOffset
 	for reader.offset < offset {
 		if _, err := reader.Read(); err != nil {
@@ -44,9 +43,11 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 }
 
 func (r *Reader) Read() (msg []byte, err error) {
-	msg, offset, err := readMessage(r.r)
-	if err == io.EOF {
-		for {
+	var offset uint64
+	for {
+		msg, offset, err = readMessage(r.r)
+		if err == io.EOF {
+			time.Sleep(10 * time.Millisecond)
 			files, err := getJournalFiles(r.dir)
 			if err != nil {
 				return nil, err
@@ -55,26 +56,22 @@ func (r *Reader) Read() (msg []byte, err error) {
 			if err != nil {
 				return nil, err
 			}
-			if r.file.Name() != journalFile.fileName && r.offset == journalFile.startOffset {
+			if r.file.Name() == journalFile.fileName {
+				if err := r.reopenFile(); err != nil {
+					return nil, err
+				}
+				continue
+			} else {
 				r.closeFile()
 				if err := r.openFile(journalFile.fileName); err != nil {
 					return nil, err
 				}
-				r.r = bufio.NewReader(r.file)
-				return r.Read()
-			}
-			if err := r.reopenFile(); err != nil {
-				return nil, err
-			}
-			msg, offset, err = readMessage(r.r)
-			if err == io.EOF {
-				time.Sleep(10 * time.Millisecond)
 				continue
-			} else if err != nil {
-				return nil, err
 			}
-			break
+		} else if err != nil {
+			return nil, err
 		}
+		break
 	}
 	if offset != r.offset {
 		return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
@@ -92,7 +89,11 @@ func (r *Reader) Close() {
 }
 
 func (r *Reader) closeFile() {
-	r.file.Close()
+	if r.file != nil {
+		r.file.Close()
+		r.file = nil
+		r.r = nil
+	}
 }
 
 func (r *Reader) openFile(name string) error {
@@ -101,6 +102,7 @@ func (r *Reader) openFile(name string) error {
 	if err != nil {
 		return err
 	}
+	r.r = bufio.NewReader(r.file)
 	return nil
 }
 

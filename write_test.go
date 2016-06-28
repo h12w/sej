@@ -9,7 +9,6 @@ import (
 
 func TestWriteFlush(t *testing.T) {
 	path := newTestPath(t)
-	defer os.RemoveAll(path)
 	messages := []string{"a", "bc"}
 
 	w := newTestWriter(t, path, 9999)
@@ -55,7 +54,6 @@ func TestWriteSegment(t *testing.T) {
 	} {
 		func() {
 			path := newTestPath(t)
-			defer os.RemoveAll(path)
 			w := newTestWriter(t, path, testcase.maxSize)
 			writeTestMessages(t, w, testcase.messages...)
 			closeTestWriter(t, w)
@@ -80,7 +78,6 @@ func TestWriteReopen(t *testing.T) {
 	for _, segmentSize := range []int{0, 9999} {
 		func() {
 			path := newTestPath(t)
-			defer os.RemoveAll(path)
 			{
 				// test reopening an empty file
 				w := newTestWriter(t, path, segmentSize)
@@ -147,7 +144,7 @@ func (fs journalFiles) sizes(t *testing.T) []int {
 }
 
 func newTestPath(t *testing.T) string {
-	path, err := ioutil.TempDir(".", "test-")
+	path, err := ioutil.TempDir(".", testPrefix)
 	if err != nil {
 		t.Fatal(err)
 	}

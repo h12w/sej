@@ -2,7 +2,6 @@ package sej
 
 import (
 	"math/rand"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -10,10 +9,7 @@ import (
 
 func TestOpenOrCreateDir(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	dir := strconv.Itoa(rand.Int())
-	defer func() {
-		os.RemoveAll(dir)
-	}()
+	dir := testPrefix + strconv.Itoa(rand.Int())
 	d, err := openOrCreateDir(dir)
 	if err != nil {
 		t.Fatal(err)

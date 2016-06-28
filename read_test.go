@@ -1,16 +1,12 @@
 package sej
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
 func TestReadOffset(t *testing.T) {
 	messages := []string{"a", "b", "c", "d", "e"}
 	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 9999} {
 		func() {
 			path := newTestPath(t)
-			defer os.RemoveAll(path)
 			w := newTestWriter(t, path, segmentSize)
 			writeTestMessages(t, w, messages...)
 			closeTestWriter(t, w)
@@ -44,12 +40,7 @@ func TestReadBeforeWrite(t *testing.T) {
 	messages := []string{"a", "b", "c", "d", "e"}
 	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 9999} {
 		func() {
-			done := make(chan bool)
 			path := newTestPath(t)
-			defer func() {
-				<-done
-				os.RemoveAll(path)
-			}()
 			r, err := NewReader(path, 0)
 			if err != nil {
 				t.Fatal(err)
@@ -59,7 +50,6 @@ func TestReadBeforeWrite(t *testing.T) {
 				w := newTestWriter(t, path, segmentSize)
 				writeTestMessages(t, w, messages...)
 				closeTestWriter(t, w)
-				done <- true
 			}()
 			for i := range messages {
 				msg, err := r.Read()
