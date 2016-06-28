@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"time"
 )
 
 type Reader struct {
@@ -54,41 +55,35 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 func (r *Reader) Read() (msg []byte, err error) {
 	msg, offset, err := readMessage(r.r)
 	if err == io.EOF {
-		/*
-			watcher, err := fsnotify.NewWatcher()
+		for {
+			files, err := getJournalFiles(r.dir)
 			if err != nil {
 				return nil, err
 			}
-		*/
-		files, err := getJournalFiles(r.dir)
-		if err != nil {
-			return nil, err
-		}
 
-		r.journalFiles = files
-		if r.journalIndex < len(r.journalFiles)-1 && r.offset == r.journalFiles[r.journalIndex+1].startOffset {
-			r.closeFile()
-			r.journalIndex++
-			journalFile := &r.journalFiles[r.journalIndex]
-			if err := r.openFile(journalFile.fileName); err != nil {
+			r.journalFiles = files
+			if r.journalIndex < len(r.journalFiles)-1 && r.offset == r.journalFiles[r.journalIndex+1].startOffset {
+				r.closeFile()
+				r.journalIndex++
+				journalFile := &r.journalFiles[r.journalIndex]
+				if err := r.openFile(journalFile.fileName); err != nil {
+					return nil, err
+				}
+				r.r = bufio.NewReader(r.file)
+				return r.Read()
+			}
+			if err := r.reopenFile(); err != nil {
 				return nil, err
 			}
-			r.r = bufio.NewReader(r.file)
-			return r.Read()
+			msg, offset, err = readMessage(r.r)
+			if err == io.EOF {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			} else if err != nil {
+				return nil, err
+			}
+			break
 		}
-		if err := r.reopenFile(); err != nil {
-			return nil, err
-		}
-		msg, offset, err := readMessage(r.r)
-		if err == io.EOF && offset == r.offset+1 {
-			return msg, nil
-		} else if err != nil {
-			return nil, err
-		}
-		if offset != r.offset {
-			return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
-		}
-		return msg, nil
 	}
 	if offset != r.offset {
 		return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
@@ -119,34 +114,30 @@ func (r *Reader) openFile(name string) error {
 }
 
 func (r *Reader) reopenFile() error {
-	fileName := r.file.Name()
-	fileOffset, err := r.file.Seek(0, os.SEEK_CUR)
-	if err != nil {
-		return err
-	}
-	r.closeFile()
-	if err := r.openFile(fileName); err != nil {
-		return err
-	}
-	if _, err := r.file.Seek(fileOffset, os.SEEK_SET); err != nil {
+	if err := reopenFile(r.file); err != nil {
 		return err
 	}
 	r.r = bufio.NewReader(r.file)
 	return nil
 }
 
-/*
-func (r *Reader) waitForFileAppend() error {
-	r.watcher.Add(r.file.Name())
-	defer r.watcher.Remove(r.file.Name())
-	select {
-	case event := <-r.watcher.Events:
-		if event.Op&fsnotify.Write == fsnotify.Write {
-			return r.reopenFile()
-		}
-	case err := <-r.watcher.Errors:
+func reopenFile(file *os.File) error {
+	fileName := file.Name()
+	offset, err := file.Seek(0, os.SEEK_CUR)
+	if err != nil {
 		return err
 	}
+	newFile, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+	if _, err := newFile.Seek(offset, os.SEEK_SET); err != nil {
+		newFile.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	*file = *newFile
 	return nil
 }
-*/

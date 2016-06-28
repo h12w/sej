@@ -40,7 +40,7 @@ func TestReadOffset(t *testing.T) {
 	}
 }
 
-func TestReadFirst(t *testing.T) {
+func TestReadBeforeWrite(t *testing.T) {
 	done := make(chan bool)
 	path := newTestPath(t)
 	defer func() {
