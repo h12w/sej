@@ -81,3 +81,27 @@ func openOrCreateDir(dir string) (*os.File, error) {
 	}
 	return f, err
 }
+
+func (a journalFiles) find(offset uint64) (*journalFile, error) {
+	for i := 0; i < len(a)-1; i++ {
+		if a[i].startOffset <= offset && offset < a[i+1].startOffset {
+			return &a[i], nil
+		}
+	}
+	if len(a) == 1 && a[0].startOffset <= offset {
+		return &a[0], nil
+	} else if a[len(a)-1].startOffset <= offset {
+		return &a[len(a)-1], nil
+	}
+	return nil, errors.New("offset is too small")
+}
+
+// TODO: use binary search as an optimization
+/*
+i := sort.Search(len(files), func(i int) bool { return files[i].startOffset > offset })
+if i == 0 {
+	return nil, errors.New("offset is too small")
+}
+
+journalIndex := i - 1
+*/

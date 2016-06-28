@@ -2,21 +2,17 @@ package sej
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"time"
 )
 
 type Reader struct {
-	dir          string
-	offset       uint64
-	r            *bufio.Reader
-	file         *os.File
-	journalFiles journalFiles
-	journalIndex int
+	dir    string
+	offset uint64
+	r      *bufio.Reader
+	file   *os.File
 }
 
 func NewReader(dir string, offset uint64) (*Reader, error) {
@@ -24,17 +20,12 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	i := sort.Search(len(files), func(i int) bool { return files[i].startOffset > offset })
-	if i == 0 {
-		return nil, errors.New("offset is too small")
+	file, err := files.find(offset)
+	if err != nil {
+		return nil, err
 	}
-
-	journalIndex := i - 1
-	file := &files[journalIndex]
 	reader := Reader{
-		dir:          dir,
-		journalFiles: files,
-		journalIndex: journalIndex,
+		dir: dir,
 	}
 	if err := reader.openFile(file.fileName); err != nil {
 		return nil, err
@@ -60,12 +51,12 @@ func (r *Reader) Read() (msg []byte, err error) {
 			if err != nil {
 				return nil, err
 			}
-
-			r.journalFiles = files
-			if r.journalIndex < len(r.journalFiles)-1 && r.offset == r.journalFiles[r.journalIndex+1].startOffset {
+			journalFile, err := files.find(r.offset)
+			if err != nil {
+				return nil, err
+			}
+			if r.file.Name() != journalFile.fileName && r.offset == journalFile.startOffset {
 				r.closeFile()
-				r.journalIndex++
-				journalFile := &r.journalFiles[r.journalIndex]
 				if err := r.openFile(journalFile.fileName); err != nil {
 					return nil, err
 				}
