@@ -41,30 +41,37 @@ func TestReadOffset(t *testing.T) {
 }
 
 func TestReadBeforeWrite(t *testing.T) {
-	done := make(chan bool)
-	path := newTestPath(t)
-	defer func() {
-		<-done
-		os.RemoveAll(path)
-	}()
-	r, err := NewReader(path, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer r.Close()
-	go func() {
-		w := newTestWriter(t, path, 9999)
-		writeTestMessages(t, w, "a")
-		closeTestWriter(t, w)
-		done <- true
-	}()
-	msg, err := r.Read()
-	if err != nil {
-		t.Fatal(err)
-	}
-	actualMsg, expectedMsg := string(msg), "a"
-	if actualMsg != expectedMsg {
-		t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
+	messages := []string{"a", "b", "c", "d", "e"}
+	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 9999} {
+		func() {
+			done := make(chan bool)
+			path := newTestPath(t)
+			defer func() {
+				<-done
+				os.RemoveAll(path)
+			}()
+			r, err := NewReader(path, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer r.Close()
+			go func() {
+				w := newTestWriter(t, path, segmentSize)
+				writeTestMessages(t, w, messages...)
+				closeTestWriter(t, w)
+				done <- true
+			}()
+			for i := range messages {
+				msg, err := r.Read()
+				if err != nil {
+					t.Fatal(err)
+				}
+				actualMsg, expectedMsg := string(msg), messages[i]
+				if actualMsg != expectedMsg {
+					t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
+				}
+			}
+		}()
 	}
 }
 
