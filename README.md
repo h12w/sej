@@ -28,14 +28,16 @@ TODO
 
 * Search offset (done)
 * Read segment files (done)
-* Tail/file/dir monitoring
-* Offset persistence
+* monitoring
+    - dir
+    - append & dir
 * Lock to prevent deletion
+* Offset persistence
 
 ### Writer
 
 * Write from the last offset (done)
 * Segmentation (done)
+* Lock to prevent other writer
 * startup corruption detection
 * startup corruption correction
-* Lock to prevent other writer
