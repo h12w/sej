@@ -2,6 +2,7 @@ package sej
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -17,7 +18,9 @@ func TestMain(m *testing.M) {
 	files, _ := ioutil.ReadDir(".")
 	for _, file := range files {
 		if file.IsDir() && strings.HasPrefix(path.Base(file.Name()), testPrefix) {
-			os.RemoveAll(file.Name())
+			if err := os.RemoveAll(file.Name()); err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 	os.Exit(ret)

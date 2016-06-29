@@ -58,7 +58,7 @@ func TestWriteSegment(t *testing.T) {
 			writeTestMessages(t, w, testcase.messages...)
 			closeTestWriter(t, w)
 
-			journalFiles, err := getJournalFiles(path)
+			journalFiles, err := openJournalDir(path)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -103,6 +103,7 @@ func readMessages(t *testing.T, path string, start uint64, n int) (messages []st
 		t.Fatal(err)
 		return nil
 	}
+	defer r.Close()
 	for i := 0; i < n; i++ {
 		msg, err := r.Read()
 		if err != nil {
@@ -135,10 +136,10 @@ func (f *journalFile) size(t *testing.T) int {
 	return int(info.Size())
 }
 
-func (fs journalFiles) sizes(t *testing.T) []int {
-	sizes := make([]int, len(fs))
-	for i := range fs {
-		sizes[i] = fs[i].size(t)
+func (fs *journalDir) sizes(t *testing.T) []int {
+	sizes := make([]int, len(fs.files))
+	for i := range fs.files {
+		sizes[i] = fs.files[i].size(t)
 	}
 	return sizes
 }

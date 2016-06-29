@@ -22,11 +22,11 @@ func NewWriter(dir string, segmentSize int) (*Writer, error) {
 		dir:         dir,
 		segmentSize: segmentSize,
 	}
-	names, err := getJournalFiles(dir)
+	names, err := openJournalDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	journalFile := &names[len(names)-1]
+	journalFile := names.last()
 	w.file, err = os.OpenFile(journalFile.fileName, os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err

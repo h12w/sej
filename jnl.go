@@ -16,31 +16,36 @@ type (
 		fileName    string
 	}
 	journalFiles []journalFile
+	journalDir   struct {
+		dir   string
+		files journalFiles
+	}
 )
 
 const (
-	journalFileExt = ".jnl"
+	journalExt = ".jnl"
 )
 
 func createNewJournalFile(dir string, offset uint64) (*os.File, error) {
-	return os.Create(path.Join(dir, fmt.Sprintf("%016x"+journalFileExt, offset)))
+	return os.Create(path.Join(dir, fmt.Sprintf("%016x"+journalExt, offset)))
 }
 
-func getJournalFiles(dir string) (files journalFiles, _ error) {
+func openJournalDir(dir string) (*journalDir, error) {
 	f, err := openOrCreateDir(dir)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 	allNames, err := f.Readdirnames(-1)
-	f.Close()
 	if err != nil {
 		return nil, err
 	}
+	var files journalFiles
 	for _, name := range allNames {
-		if path.Ext(name) != journalFileExt {
+		if path.Ext(name) != journalExt {
 			continue
 		}
-		offset, err := strconv.ParseUint(strings.TrimSuffix(path.Base(name), journalFileExt), 16, 64)
+		offset, err := strconv.ParseUint(strings.TrimSuffix(path.Base(name), journalExt), 16, 64)
 		if err != nil {
 			continue
 		}
@@ -55,13 +60,16 @@ func getJournalFiles(dir string) (files journalFiles, _ error) {
 			return nil, err
 		}
 		f.Close()
-		return getJournalFiles(dir)
+		return openJournalDir(dir)
 	}
 	sort.Sort(files)
 	if len(files) == 0 {
 		return nil, errors.New("no journal files found or created")
 	}
-	return files, nil
+	return &journalDir{
+		files: files,
+		dir:   dir,
+	}, nil
 }
 
 func (a journalFiles) Len() int           { return len(a) }
@@ -82,20 +90,24 @@ func openOrCreateDir(dir string) (*os.File, error) {
 	return f, err
 }
 
-func (a journalFiles) isLast(f *journalFile) bool {
-	return a[len(a)-1].startOffset == f.startOffset
+func (d *journalDir) last() *journalFile {
+	return &d.files[len(d.files)-1]
 }
 
-func (a journalFiles) find(offset uint64) (*journalFile, error) {
-	for i := 0; i < len(a)-1; i++ {
-		if a[i].startOffset <= offset && offset < a[i+1].startOffset {
-			return &a[i], nil
+func (d *journalDir) isLast(f *journalFile) bool {
+	return d.files[len(d.files)-1].startOffset == f.startOffset
+}
+
+func (d *journalDir) find(offset uint64) (*journalFile, error) {
+	for i := 0; i < len(d.files)-1; i++ {
+		if d.files[i].startOffset <= offset && offset < d.files[i+1].startOffset {
+			return &d.files[i], nil
 		}
 	}
-	if len(a) == 1 && a[0].startOffset <= offset {
-		return &a[0], nil
-	} else if a[len(a)-1].startOffset <= offset {
-		return &a[len(a)-1], nil
+	if len(d.files) == 1 && d.files[0].startOffset <= offset {
+		return &d.files[0], nil
+	} else if d.files[len(d.files)-1].startOffset <= offset {
+		return &d.files[len(d.files)-1], nil
 	}
 	return nil, errors.New("offset is too small")
 }

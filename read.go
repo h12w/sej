@@ -9,27 +9,31 @@ import (
 )
 
 type Reader struct {
-	dir          string
-	offset       uint64
-	r            *bufio.Reader
-	file         io.ReadCloser
-	journalFiles journalFiles
-	journalFile  *journalFile
+	dir         string
+	offset      uint64
+	r           *bufio.Reader
+	file        io.ReadCloser
+	journalDir  *watchedJournalDir
+	journalFile *journalFile
 }
 
 func NewReader(dir string, offset uint64) (*Reader, error) {
-	journalFiles, err := getJournalFiles(dir)
+	journalDir, err := openWatchedJournalDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	journalFile, err := journalFiles.find(offset)
+	journalFile, err := journalDir.find(offset)
 	if err != nil {
 		return nil, err
 	}
 	reader := Reader{
 		dir: dir,
 	}
-	if journalFiles.isLast(journalFile) {
+	isLast, err := journalDir.isLast(journalFile)
+	if err != nil {
+		return nil, err
+	}
+	if isLast {
 		reader.file, err = openTailFile(journalFile.fileName)
 	} else {
 		reader.file, err = os.Open(journalFile.fileName)
@@ -40,7 +44,7 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	reader.r = bufio.NewReader(reader.file)
 	reader.offset = journalFile.startOffset
 	reader.journalFile = journalFile
-	reader.journalFiles = journalFiles
+	reader.journalDir = journalDir
 	for reader.offset < offset {
 		if _, err := reader.Read(); err != nil {
 			return nil, err
@@ -57,20 +61,24 @@ func (r *Reader) Read() (msg []byte, err error) {
 	for {
 		msg, offset, err = readMessage(r.r)
 		if err == io.EOF {
-			if r.journalFiles.isLast(r.journalFile) {
-				journalFiles, err := getJournalFiles(r.dir)
-				if err != nil {
-					return nil, err
-				}
-				r.journalFiles = journalFiles
-				if r.journalFiles.isLast(r.journalFile) {
-					time.Sleep(10 * time.Millisecond)
-					continue // wait for append or new file
-				}
+			isLast, err := r.journalDir.isLast(r.journalFile)
+			if err != nil {
+				return nil, err
 			}
-			journalFile, err := r.journalFiles.find(r.offset)
+			if isLast {
+				time.Sleep(10 * time.Millisecond)
+				continue // wait for append or new file
+			}
+			journalFile, err := r.journalDir.find(r.offset)
+			if err != nil {
+				return nil, err
+			}
 			r.closeFile()
-			if r.journalFiles.isLast(journalFile) {
+			isLast, err = r.journalDir.isLast(r.journalFile)
+			if err != nil {
+				return nil, err
+			}
+			if isLast {
 				r.file, err = openTailFile(journalFile.fileName)
 			} else {
 				r.file, err = os.Open(journalFile.fileName)
@@ -99,6 +107,7 @@ func (r *Reader) Offset() uint64 {
 }
 
 func (r *Reader) Close() {
+	r.journalDir.close()
 	r.closeFile()
 }
 
