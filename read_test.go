@@ -2,7 +2,37 @@ package sej
 
 import "testing"
 
-func TestReadOffset(t *testing.T) {
+func TestReadThrough(t *testing.T) {
+	messages := []string{"a", "b", "c", "d", "e", "f", "g"}
+
+	path := newTestPath(t)
+	w := newTestWriter(t, path, (metaSize+1)*2)
+	writeTestMessages(t, w, messages...)
+	closeTestWriter(t, w)
+
+	r, err := NewReader(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	for i, expectedMsg := range messages {
+		// create a new reader starting from i
+		msg, err := r.Read()
+		if err != nil {
+			t.Fatal(err)
+		}
+		actualMsg := string(msg)
+		if actualMsg != expectedMsg {
+			t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
+		}
+		nextOffset := uint64(i + 1)
+		if r.Offset() != nextOffset {
+			t.Fatalf("expect offset %s, got %s", nextOffset, r.Offset())
+		}
+	}
+}
+
+func TestReadFromOffset(t *testing.T) {
 	messages := []string{"a", "b", "c", "d", "e"}
 	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 9999} {
 		func() {
@@ -13,6 +43,7 @@ func TestReadOffset(t *testing.T) {
 
 			for i, expectedMsg := range messages {
 				func() {
+					// create a new reader starting from i
 					r, err := NewReader(path, uint64(i))
 					if err != nil {
 						t.Fatal(err)

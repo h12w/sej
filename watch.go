@@ -1,21 +1,23 @@
 package sej
 
 import (
+	"io"
+	"os"
 	"sync"
 
 	"gopkg.in/fsnotify.v1"
 )
 
 type watchedJournalDir struct {
-	watcher *fsnotify.Watcher
-	dirPath string
 	dir     *journalDir
+	watcher *fsnotify.Watcher
 	err     error
 	mu      sync.RWMutex
 	wg      sync.WaitGroup
+	changed chan bool
 }
 
-func openWatchedJournalDir(dir string) (*watchedJournalDir, error) {
+func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, error) {
 	journalDir, err := openJournalDir(dir)
 	if err != nil {
 		return nil, err
@@ -29,9 +31,9 @@ func openWatchedJournalDir(dir string) (*watchedJournalDir, error) {
 		return nil, err
 	}
 	d := &watchedJournalDir{
-		watcher: watcher,
-		dirPath: dir,
 		dir:     journalDir,
+		watcher: watcher,
+		changed: changed,
 	}
 	d.wg.Add(2)
 	go d.watchEvent()
@@ -48,13 +50,10 @@ func (d *watchedJournalDir) find(offset uint64) (*journalFile, error) {
 	return d.dir.find(offset)
 }
 
-func (d *watchedJournalDir) isLast(f *journalFile) (bool, error) {
+func (d *watchedJournalDir) isLast(f *journalFile) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	if d.err != nil {
-		return false, d.err
-	}
-	return d.dir.isLast(f), nil
+	return d.dir.isLast(f)
 }
 
 func (d *watchedJournalDir) watchEvent() {
@@ -62,6 +61,10 @@ func (d *watchedJournalDir) watchEvent() {
 	for event := range d.watcher.Events {
 		if event.Op&(fsnotify.Create|fsnotify.Remove) > 0 {
 			d.reload()
+			select {
+			case d.changed <- true:
+			default:
+			}
 		}
 	}
 }
@@ -78,7 +81,7 @@ func (d *watchedJournalDir) watchError() {
 func (d *watchedJournalDir) reload() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	journalDir, err := openJournalDir(d.dirPath)
+	journalDir, err := openJournalDir(d.dir.path)
 	if err != nil {
 		d.err = err
 	}
@@ -86,8 +89,110 @@ func (d *watchedJournalDir) reload() {
 }
 
 func (d *watchedJournalDir) close() error {
-	d.watcher.Remove(d.dirPath)
+	d.watcher.Remove(d.dir.path)
 	d.watcher.Close()
 	d.wg.Wait()
+	return nil
+}
+
+type watchedFile struct {
+	file     *os.File
+	watcher  *fsnotify.Watcher
+	modified bool
+	err      error
+	mu       sync.RWMutex
+	wg       sync.WaitGroup
+	changed  chan bool
+}
+
+func openWatchedFile(name string, changed chan bool) (*watchedFile, error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, err
+	}
+	if err := watcher.Add(name); err != nil {
+		watcher.Close()
+		return nil, err
+	}
+	f := &watchedFile{
+		file:    file,
+		watcher: watcher,
+		changed: changed,
+	}
+	f.wg.Add(2)
+	go f.watchEvent()
+	go f.watchError()
+	return f, nil
+}
+
+func (f *watchedFile) watchEvent() {
+	defer f.wg.Done()
+	for event := range f.watcher.Events {
+		if event.Op&(fsnotify.Write) > 0 {
+			f.modified = true
+			select {
+			case f.changed <- true:
+			default:
+			}
+		}
+	}
+}
+
+func (f *watchedFile) watchError() {
+	defer f.wg.Done()
+	for err := range f.watcher.Errors {
+		f.mu.Lock()
+		f.err = err
+		f.mu.Unlock()
+	}
+}
+
+func (f *watchedFile) reopen() error {
+	oldStat, err := f.file.Stat()
+	if err != nil {
+		return err
+	}
+	oldSize := oldStat.Size()
+	fileName := f.file.Name()
+	newFile, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+	if _, err := newFile.Seek(oldSize, os.SEEK_SET); err != nil {
+		newFile.Close()
+		return err
+	}
+	if err := f.file.Close(); err != nil {
+		return err
+	}
+	f.file = newFile
+	f.modified = false
+	return nil
+}
+
+func (f *watchedFile) Read(p []byte) (n int, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return 0, f.err
+	}
+	n, err = f.file.Read(p)
+	if err == io.EOF && f.modified {
+		if nil != f.reopen() {
+			return n, err
+		}
+		return f.file.Read(p)
+	}
+	return n, err
+}
+
+func (f *watchedFile) Close() error {
+	f.watcher.Remove(f.file.Name())
+	f.watcher.Close()
+	f.wg.Wait()
 	return nil
 }

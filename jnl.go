@@ -17,7 +17,7 @@ type (
 	}
 	journalFiles []journalFile
 	journalDir   struct {
-		dir   string
+		path  string
 		files journalFiles
 	}
 )
@@ -68,7 +68,7 @@ func openJournalDir(dir string) (*journalDir, error) {
 	}
 	return &journalDir{
 		files: files,
-		dir:   dir,
+		path:  dir,
 	}, nil
 }
 

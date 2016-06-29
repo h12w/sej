@@ -8,17 +8,24 @@ import (
 	"time"
 )
 
+const (
+	notifyTimeout = 10 * time.Millisecond
+)
+
 type Reader struct {
-	dir         string
 	offset      uint64
 	r           *bufio.Reader
 	file        io.ReadCloser
 	journalDir  *watchedJournalDir
 	journalFile *journalFile
+	changed     chan bool
 }
 
 func NewReader(dir string, offset uint64) (*Reader, error) {
-	journalDir, err := openWatchedJournalDir(dir)
+	r := Reader{
+		changed: make(chan bool),
+	}
+	journalDir, err := openWatchedJournalDir(dir, r.changed)
 	if err != nil {
 		return nil, err
 	}
@@ -26,34 +33,27 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	reader := Reader{
-		dir: dir,
-	}
-	isLast, err := journalDir.isLast(journalFile)
-	if err != nil {
-		return nil, err
-	}
-	if isLast {
-		reader.file, err = openTailFile(journalFile.fileName)
+	if journalDir.isLast(journalFile) {
+		r.file, err = openWatchedFile(journalFile.fileName, r.changed)
 	} else {
-		reader.file, err = os.Open(journalFile.fileName)
+		r.file, err = os.Open(journalFile.fileName)
 	}
 	if err != nil {
 		return nil, err
 	}
-	reader.r = bufio.NewReader(reader.file)
-	reader.offset = journalFile.startOffset
-	reader.journalFile = journalFile
-	reader.journalDir = journalDir
-	for reader.offset < offset {
-		if _, err := reader.Read(); err != nil {
+	r.r = bufio.NewReader(r.file)
+	r.offset = journalFile.startOffset
+	r.journalFile = journalFile
+	r.journalDir = journalDir
+	for r.offset < offset {
+		if _, err := r.Read(); err != nil {
 			return nil, err
 		}
 	}
-	if reader.offset != offset {
+	if r.offset != offset {
 		return nil, fmt.Errorf("fail to find offset %d", offset)
 	}
-	return &reader, nil
+	return &r, nil
 }
 
 func (r *Reader) Read() (msg []byte, err error) {
@@ -61,19 +61,19 @@ func (r *Reader) Read() (msg []byte, err error) {
 	for {
 		msg, offset, err = readMessage(r.r)
 		if err == io.EOF {
-			isLast, err := r.journalDir.isLast(r.journalFile)
-			if err != nil {
-				return nil, err
-			}
-			if isLast {
-				time.Sleep(10 * time.Millisecond)
-				continue // wait for append or new file
+			if r.journalDir.isLast(r.journalFile) {
+				select {
+				case <-r.changed:
+					// fmt.Println("changed")
+				case <-time.After(notifyTimeout):
+					// fmt.Println("timeout")
+				}
+				continue
 			}
 			if err := r.moveToNextFile(); err != nil {
 				return nil, err
 			}
-			time.Sleep(10 * time.Millisecond)
-			continue // try to read new file
+			continue
 		} else if err != nil {
 			return nil, err
 		}
@@ -92,12 +92,8 @@ func (r *Reader) moveToNextFile() error {
 		return err
 	}
 	r.closeFile()
-	isLast, err := r.journalDir.isLast(r.journalFile)
-	if err != nil {
-		return err
-	}
-	if isLast {
-		r.file, err = openTailFile(journalFile.fileName)
+	if r.journalDir.isLast(journalFile) {
+		r.file, err = openWatchedFile(journalFile.fileName, r.changed)
 	} else {
 		r.file, err = os.Open(journalFile.fileName)
 	}
@@ -124,55 +120,4 @@ func (r *Reader) closeFile() {
 		r.file = nil
 		r.r = nil
 	}
-}
-
-type tailFile struct {
-	*os.File
-}
-
-func openTailFile(file string) (*tailFile, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	return &tailFile{
-		File: f,
-	}, nil
-}
-
-func (f *tailFile) Read(p []byte) (n int, err error) {
-	n, err = f.File.Read(p)
-	if err == io.EOF && n == 0 {
-		oldStat, err := f.File.Stat()
-		if err != nil {
-			return n, io.EOF
-		}
-		oldSize := oldStat.Size()
-		fileName := f.File.Name()
-		newFile, err := os.Open(fileName)
-		if err != nil {
-			return n, io.EOF
-		}
-		newStat, err := newFile.Stat()
-		if err != nil {
-			return n, io.EOF
-		}
-		newSize := newStat.Size()
-		if newSize <= oldSize {
-			newFile.Close()
-			return n, io.EOF
-		}
-		if _, err := newFile.Seek(oldSize, os.SEEK_SET); err != nil {
-			newFile.Close()
-			return n, io.EOF
-		}
-		if err := f.File.Close(); err != nil {
-			return n, io.EOF
-		}
-		f.File = newFile
-		n, err = f.File.Read(p)
-	} else if err != nil {
-		return
-	}
-	return
 }

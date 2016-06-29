@@ -29,8 +29,9 @@ TODO
 * Search offset (done)
 * Read segment files (done)
 * monitoring
-    - dir
-    - append & dir
+    - dir (done)
+    - append (done)
+    - append or dir
 * Lock to prevent deletion
 * Offset persistence
 
