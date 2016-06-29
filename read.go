@@ -69,25 +69,9 @@ func (r *Reader) Read() (msg []byte, err error) {
 				time.Sleep(10 * time.Millisecond)
 				continue // wait for append or new file
 			}
-			journalFile, err := r.journalDir.find(r.offset)
-			if err != nil {
+			if err := r.moveToNextFile(); err != nil {
 				return nil, err
 			}
-			r.closeFile()
-			isLast, err = r.journalDir.isLast(r.journalFile)
-			if err != nil {
-				return nil, err
-			}
-			if isLast {
-				r.file, err = openTailFile(journalFile.fileName)
-			} else {
-				r.file, err = os.Open(journalFile.fileName)
-			}
-			if err != nil {
-				return nil, err
-			}
-			r.r = bufio.NewReader(r.file)
-			r.journalFile = journalFile
 			time.Sleep(10 * time.Millisecond)
 			continue // try to read new file
 		} else if err != nil {
@@ -100,6 +84,29 @@ func (r *Reader) Read() (msg []byte, err error) {
 	}
 	r.offset++
 	return msg, nil
+}
+
+func (r *Reader) moveToNextFile() error {
+	journalFile, err := r.journalDir.find(r.offset)
+	if err != nil {
+		return err
+	}
+	r.closeFile()
+	isLast, err := r.journalDir.isLast(r.journalFile)
+	if err != nil {
+		return err
+	}
+	if isLast {
+		r.file, err = openTailFile(journalFile.fileName)
+	} else {
+		r.file, err = os.Open(journalFile.fileName)
+	}
+	if err != nil {
+		return err
+	}
+	r.r = bufio.NewReader(r.file)
+	r.journalFile = journalFile
+	return nil
 }
 
 func (r *Reader) Offset() uint64 {
