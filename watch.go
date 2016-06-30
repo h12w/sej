@@ -9,19 +9,21 @@ import (
 )
 
 type watchedJournalDir struct {
-	dir     *journalDir
-	watcher *fsnotify.Watcher
-	err     error
-	mu      sync.RWMutex
-	wg      sync.WaitGroup
-	changed chan bool
+	dir      *journalDir
+	watcher  *fsnotify.Watcher
+	modified bool
+	err      error
+	mu       sync.RWMutex
+	wg       sync.WaitGroup
+	changed  chan bool
 }
 
 func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, error) {
-	journalDir, err := openJournalDir(dir)
+	dirFile, err := openOrCreateDir(dir)
 	if err != nil {
 		return nil, err
 	}
+	dirFile.Close()
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -31,13 +33,17 @@ func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, e
 		return nil, err
 	}
 	d := &watchedJournalDir{
-		dir:     journalDir,
 		watcher: watcher,
 		changed: changed,
 	}
 	d.wg.Add(2)
 	go d.watchEvent()
 	go d.watchError()
+	d.dir, err = openJournalDir(dir)
+	if err != nil {
+		watcher.Close()
+		return nil, err
+	}
 	return d, nil
 }
 
@@ -47,12 +53,20 @@ func (d *watchedJournalDir) find(offset uint64) (*journalFile, error) {
 	if d.err != nil {
 		return nil, d.err
 	}
+	if err := d.reload(); err != nil {
+		d.err = err
+		return nil, err
+	}
 	return d.dir.find(offset)
 }
 
 func (d *watchedJournalDir) isLast(f *journalFile) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
+	if err := d.reload(); err != nil {
+		d.err = err
+		return false
+	}
 	return d.dir.isLast(f)
 }
 
@@ -60,7 +74,9 @@ func (d *watchedJournalDir) watchEvent() {
 	defer d.wg.Done()
 	for event := range d.watcher.Events {
 		if event.Op&(fsnotify.Create|fsnotify.Remove) > 0 {
-			d.reload()
+			d.mu.Lock()
+			d.modified = true
+			d.mu.Unlock()
 			select {
 			case d.changed <- true:
 			default:
@@ -78,14 +94,17 @@ func (d *watchedJournalDir) watchError() {
 	}
 }
 
-func (d *watchedJournalDir) reload() {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+func (d *watchedJournalDir) reload() error {
+	if !d.modified {
+		return nil
+	}
 	journalDir, err := openJournalDir(d.dir.path)
 	if err != nil {
-		d.err = err
+		return err
 	}
 	d.dir = journalDir
+	d.modified = false
+	return nil
 }
 
 func (d *watchedJournalDir) close() error {
@@ -106,10 +125,6 @@ type watchedFile struct {
 }
 
 func openWatchedFile(name string, changed chan bool) (*watchedFile, error) {
-	file, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -119,13 +134,17 @@ func openWatchedFile(name string, changed chan bool) (*watchedFile, error) {
 		return nil, err
 	}
 	f := &watchedFile{
-		file:    file,
 		watcher: watcher,
 		changed: changed,
 	}
 	f.wg.Add(2)
 	go f.watchEvent()
 	go f.watchError()
+	f.file, err = os.Open(name)
+	if err != nil {
+		watcher.Close()
+		return nil, err
+	}
 	return f, nil
 }
 
