@@ -14,7 +14,7 @@ func TestWriteFlush(t *testing.T) {
 	w := newTestWriter(t, path, 9999)
 	defer closeTestWriter(t, w)
 	writeTestMessages(t, w, messages...)
-	if err := w.Flush(w.Offset()); err != nil {
+	if err := w.flush(); err != nil {
 		t.Fatal(err)
 	}
 	verifyReadMessages(t, path, messages...)

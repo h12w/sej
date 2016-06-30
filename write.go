@@ -85,7 +85,7 @@ func (w *Writer) Offset() uint64 {
 	return w.offset
 }
 
-func (w *Writer) Flush(offset uint64) error {
+func (w *Writer) flush() error {
 	if err := w.w.Flush(); err != nil {
 		return err
 	}
@@ -93,7 +93,10 @@ func (w *Writer) Flush(offset uint64) error {
 }
 
 func (w *Writer) Close() error {
-	if err := w.Flush(w.offset); err != nil {
+	if err := w.flush(); err != nil {
+		return err
+	}
+	if err := w.file.Sync(); err != nil {
 		return err
 	}
 	if err := w.file.Close(); err != nil {
