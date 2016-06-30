@@ -12,11 +12,11 @@ func TestWriteFlush(t *testing.T) {
 	messages := []string{"a", "bc"}
 
 	w := newTestWriter(t, path, 9999)
+	defer closeTestWriter(t, w)
 	writeTestMessages(t, w, messages...)
 	if err := w.Flush(w.Offset()); err != nil {
 		t.Fatal(err)
 	}
-
 	verifyReadMessages(t, path, messages...)
 }
 

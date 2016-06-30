@@ -9,6 +9,7 @@ import (
 
 type Writer struct {
 	dir         string
+	lock        *fileLock
 	offset      uint64
 	w           *bufio.Writer
 	file        *os.File
@@ -17,36 +18,42 @@ type Writer struct {
 }
 
 func NewWriter(dir string, segmentSize int) (*Writer, error) {
-	var err error
-	w := Writer{
-		dir:         dir,
-		segmentSize: segmentSize,
+	lock, err := openFileLock(dir + ".lck")
+	if err != nil {
+		return nil, err
 	}
 	names, err := openJournalDir(dir)
 	if err != nil {
 		return nil, err
 	}
 	journalFile := names.last()
-	w.file, err = os.OpenFile(journalFile.fileName, os.O_RDWR, 0644)
+	file, err := os.OpenFile(journalFile.fileName, os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
-	fileSize, err := w.file.Seek(0, os.SEEK_END)
+	fileSize, err := file.Seek(0, os.SEEK_END)
 	if err != nil {
 		return nil, err
 	}
+	var offset uint64
 	if fileSize == 0 {
-		w.offset = journalFile.startOffset
+		offset = journalFile.startOffset
 	} else {
-		w.fileSize = int(fileSize)
-		_, offset, err := readMessageBackward(w.file)
+		_, offset, err = readMessageBackward(file)
 		if err != nil {
 			return nil, err
 		}
-		w.offset = offset + 1
+		offset = offset + 1
 	}
-	w.w = bufio.NewWriter(w.file)
-	return &w, nil
+	return &Writer{
+		dir:         dir,
+		lock:        lock,
+		file:        file,
+		offset:      offset,
+		segmentSize: segmentSize,
+		fileSize:    int(fileSize),
+		w:           bufio.NewWriter(file),
+	}, nil
 }
 
 func (w *Writer) Append(msg []byte) error {
@@ -89,5 +96,8 @@ func (w *Writer) Close() error {
 	if err := w.Flush(w.offset); err != nil {
 		return err
 	}
-	return w.file.Close()
+	if err := w.file.Close(); err != nil {
+		return err
+	}
+	return w.lock.Close()
 }

@@ -32,17 +32,23 @@ TODO
     - dir (done)
     - append (done)
     - append or dir (done)
-* Lock to prevent deletion
 * Offset persistence
 
 ### Writer
 
 * Write from the last offset (done)
 * Segmentation (done)
-* Lock to prevent other writer
+* Lock to prevent other writer (done)
 * startup corruption detection
-* startup corruption correction
 
 ### Cleaner
 
 * delete files according to cleaning rules
+
+### Benchmark
+
+* Writer
+    - Sync
+    - Async
+* Reader
+* Single writer and multiple readers

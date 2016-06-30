@@ -101,17 +101,12 @@ func (f *watchedFile) Read(p []byte) (n int, err error) {
 	return n, err
 }
 func (f *watchedFile) reopen() error {
-	oldStat, err := f.file.Stat()
+	oldOffset, err := f.file.Seek(0, os.SEEK_CUR)
 	if err != nil {
 		return err
 	}
-	oldSize := oldStat.Size()
-	fileName := f.file.Name()
-	newFile, err := os.Open(fileName)
-	if err != nil {
-		return err
-	}
-	if _, err := newFile.Seek(oldSize, os.SEEK_SET); err != nil {
+	newFile, err := os.Open(f.file.Name())
+	if _, err := newFile.Seek(oldOffset, os.SEEK_SET); err != nil {
 		newFile.Close()
 		return err
 	}
@@ -165,7 +160,9 @@ func (f *changeWatcher) watchEvent() {
 	defer f.wg.Done()
 	for event := range f.watcher.Events {
 		if event.Op&(f.watchedOp) > 0 {
+			f.mu.Lock()
 			f.changed = true
+			f.mu.Unlock()
 			select {
 			case f.changedCh <- true:
 			default:

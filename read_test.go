@@ -67,7 +67,7 @@ func TestReadFromOffset(t *testing.T) {
 	}
 }
 
-func TestReadBeforeWrite(t *testing.T) {
+func TestReadFirst(t *testing.T) {
 	messages := []string{"a", "b", "c", "d", "e"}
 	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 9999} {
 		func() {
@@ -77,10 +77,14 @@ func TestReadBeforeWrite(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer r.Close()
+
+			done := make(chan bool)
+			defer func() { <-done }()
 			go func() {
 				w := newTestWriter(t, path, segmentSize)
 				writeTestMessages(t, w, messages...)
 				closeTestWriter(t, w)
+				done <- true
 			}()
 			for i := range messages {
 				msg, err := r.Read()

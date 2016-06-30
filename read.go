@@ -1,7 +1,6 @@
 package sej
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -13,7 +12,6 @@ import (
 
 type Reader struct {
 	offset      uint64
-	r           *bufio.Reader
 	file        io.ReadCloser
 	journalDir  *watchedJournalDir
 	journalFile *journalFile
@@ -42,7 +40,6 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	r.r = bufio.NewReader(r.file)
 	r.offset = journalFile.startOffset
 	r.journalFile = journalFile
 	r.journalDir = journalDir
@@ -60,7 +57,7 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 func (r *Reader) Read() (msg []byte, err error) {
 	var offset uint64
 	for {
-		msg, offset, err = readMessage(r.r)
+		msg, offset, err = readMessage(r.file)
 		if err == io.EOF {
 			if r.journalDir.IsLast(r.journalFile) {
 				select {
@@ -75,8 +72,10 @@ func (r *Reader) Read() (msg []byte, err error) {
 					// 	continue
 				}
 			}
-			if err := r.moveToNextFile(); err != nil {
-				return nil, err
+			if !r.journalDir.IsLast(r.journalFile) {
+				if err := r.moveToNextFile(); err != nil {
+					return nil, err
+				}
 			}
 			continue
 		} else if err != nil {
@@ -85,7 +84,7 @@ func (r *Reader) Read() (msg []byte, err error) {
 		break
 	}
 	if offset != r.offset {
-		return nil, fmt.Errorf("offset is out of order: %d, %d", offset, r.offset)
+		return nil, fmt.Errorf("offset is out of order, expect %d but got %d", r.offset, offset)
 	}
 	r.offset++
 	return msg, nil
@@ -105,7 +104,6 @@ func (r *Reader) moveToNextFile() error {
 	if err != nil {
 		return err
 	}
-	r.r = bufio.NewReader(r.file)
 	r.journalFile = journalFile
 	return nil
 }
