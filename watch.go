@@ -9,13 +9,8 @@ import (
 )
 
 type watchedJournalDir struct {
-	dir      *journalDir
-	watcher  *fsnotify.Watcher
-	modified bool
-	err      error
-	mu       sync.RWMutex
-	wg       sync.WaitGroup
-	changed  chan bool
+	dir     *journalDir
+	watcher *changeWatcher
 }
 
 func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, error) {
@@ -24,152 +19,87 @@ func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, e
 		return nil, err
 	}
 	dirFile.Close()
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := newChangeWatcher(dir, fsnotify.Create|fsnotify.Remove, changed)
 	if err != nil {
 		return nil, err
 	}
-	if err := watcher.Add(dir); err != nil {
+	journalDir, err := openJournalDir(dir)
+	if err != nil {
 		watcher.Close()
 		return nil, err
 	}
-	d := &watchedJournalDir{
+	return &watchedJournalDir{
+		dir:     journalDir,
 		watcher: watcher,
-		changed: changed,
-	}
-	d.wg.Add(2)
-	go d.watchEvent()
-	go d.watchError()
-	d.dir, err = openJournalDir(dir)
-	if err != nil {
-		watcher.Close()
-		return nil, err
-	}
-	return d, nil
+	}, nil
 }
 
 func (d *watchedJournalDir) find(offset uint64) (*journalFile, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if d.err != nil {
-		return nil, d.err
+	if err := d.watcher.Err(); err != nil {
+		return nil, err
 	}
-	if err := d.reload(); err != nil {
-		d.err = err
+	if err := d.watcher.Reset(d.reload); err != nil {
 		return nil, err
 	}
 	return d.dir.find(offset)
 }
 
 func (d *watchedJournalDir) isLast(f *journalFile) bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if err := d.reload(); err != nil {
-		d.err = err
-		return false
+	if err := d.watcher.Err(); err != nil {
+		return true
+	}
+	if err := d.watcher.Reset(d.reload); err != nil {
+		return true
 	}
 	return d.dir.isLast(f)
 }
-
-func (d *watchedJournalDir) watchEvent() {
-	defer d.wg.Done()
-	for event := range d.watcher.Events {
-		if event.Op&(fsnotify.Create|fsnotify.Remove) > 0 {
-			d.mu.Lock()
-			d.modified = true
-			d.mu.Unlock()
-			select {
-			case d.changed <- true:
-			default:
-			}
-		}
-	}
-}
-
-func (d *watchedJournalDir) watchError() {
-	defer d.wg.Done()
-	for err := range d.watcher.Errors {
-		d.mu.Lock()
-		d.err = err
-		d.mu.Unlock()
-	}
-}
-
 func (d *watchedJournalDir) reload() error {
-	if !d.modified {
-		return nil
-	}
 	journalDir, err := openJournalDir(d.dir.path)
 	if err != nil {
 		return err
 	}
 	d.dir = journalDir
-	d.modified = false
 	return nil
 }
 
 func (d *watchedJournalDir) close() error {
-	d.watcher.Remove(d.dir.path)
-	d.watcher.Close()
-	d.wg.Wait()
-	return nil
+	return d.watcher.Close()
 }
 
 type watchedFile struct {
-	file     *os.File
-	watcher  *fsnotify.Watcher
-	modified bool
-	err      error
-	mu       sync.RWMutex
-	wg       sync.WaitGroup
-	changed  chan bool
+	file    *os.File
+	watcher *changeWatcher
 }
 
 func openWatchedFile(name string, changed chan bool) (*watchedFile, error) {
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := newChangeWatcher(name, fsnotify.Write, changed)
 	if err != nil {
 		return nil, err
 	}
-	if err := watcher.Add(name); err != nil {
+	file, err := os.Open(name)
+	if err != nil {
 		watcher.Close()
 		return nil, err
 	}
-	f := &watchedFile{
+	return &watchedFile{
+		file:    file,
 		watcher: watcher,
-		changed: changed,
-	}
-	f.wg.Add(2)
-	go f.watchEvent()
-	go f.watchError()
-	f.file, err = os.Open(name)
-	if err != nil {
-		watcher.Close()
-		return nil, err
-	}
-	return f, nil
+	}, nil
 }
 
-func (f *watchedFile) watchEvent() {
-	defer f.wg.Done()
-	for event := range f.watcher.Events {
-		if event.Op&(fsnotify.Write) > 0 {
-			f.modified = true
-			select {
-			case f.changed <- true:
-			default:
-			}
+func (f *watchedFile) Read(p []byte) (n int, err error) {
+	if err := f.watcher.Err(); err != nil {
+		return 0, err
+	}
+	n, err = f.file.Read(p)
+	if err == io.EOF {
+		if err := f.watcher.Reset(f.reopen); err != nil {
+			return n, err
 		}
+		return f.file.Read(p)
 	}
+	return n, err
 }
-
-func (f *watchedFile) watchError() {
-	defer f.wg.Done()
-	for err := range f.watcher.Errors {
-		f.mu.Lock()
-		f.err = err
-		f.mu.Unlock()
-	}
-}
-
 func (f *watchedFile) reopen() error {
 	oldStat, err := f.file.Stat()
 	if err != nil {
@@ -189,28 +119,91 @@ func (f *watchedFile) reopen() error {
 		return err
 	}
 	f.file = newFile
-	f.modified = false
 	return nil
 }
 
-func (f *watchedFile) Read(p []byte) (n int, err error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.err != nil {
-		return 0, f.err
+func (f *watchedFile) Close() error {
+	err1 := f.file.Close()
+	err2 := f.watcher.Close()
+	if err1 != nil {
+		return err1
+	} else if err2 != nil {
+		return err2
 	}
-	n, err = f.file.Read(p)
-	if err == io.EOF && f.modified {
-		if nil != f.reopen() {
-			return n, err
-		}
-		return f.file.Read(p)
-	}
-	return n, err
+	return nil
 }
 
-func (f *watchedFile) Close() error {
-	f.watcher.Remove(f.file.Name())
+type changeWatcher struct {
+	watcher   *fsnotify.Watcher
+	watchedOp fsnotify.Op
+	changed   bool
+	err       error
+	mu        sync.RWMutex
+	wg        sync.WaitGroup
+	changedCh chan bool
+}
+
+func newChangeWatcher(name string, op fsnotify.Op, changedCh chan bool) (*changeWatcher, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, err
+	}
+	if err := watcher.Add(name); err != nil {
+		watcher.Close()
+		return nil, err
+	}
+	w := &changeWatcher{
+		watcher:   watcher,
+		watchedOp: fsnotify.Write,
+		changedCh: changedCh,
+	}
+	w.wg.Add(2)
+	go w.watchEvent()
+	go w.watchError()
+	return w, nil
+}
+
+func (f *changeWatcher) watchEvent() {
+	defer f.wg.Done()
+	for event := range f.watcher.Events {
+		if event.Op&(f.watchedOp) > 0 {
+			f.changed = true
+			select {
+			case f.changedCh <- true:
+			default:
+			}
+		}
+	}
+}
+
+func (f *changeWatcher) watchError() {
+	defer f.wg.Done()
+	for err := range f.watcher.Errors {
+		f.mu.Lock()
+		f.err = err
+		f.mu.Unlock()
+	}
+}
+
+func (w *changeWatcher) Err() error {
+	w.mu.RLock()
+	err := w.err
+	w.mu.RUnlock()
+	return err
+}
+
+func (w *changeWatcher) Reset(update func() error) error {
+	w.mu.Lock()
+	if err := update(); err != nil {
+		w.mu.Unlock()
+		return err
+	}
+	w.changed = false
+	w.mu.Unlock()
+	return nil
+}
+
+func (f *changeWatcher) Close() error {
 	f.watcher.Close()
 	f.wg.Wait()
 	return nil
