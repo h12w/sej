@@ -18,14 +18,16 @@ type Reader struct {
 	file        io.ReadCloser
 	journalDir  *watchedJournalDir
 	journalFile *journalFile
-	changed     chan bool
+	fileChanged chan bool
+	dirChanged  chan bool
 }
 
 func NewReader(dir string, offset uint64) (*Reader, error) {
 	r := Reader{
-		changed: make(chan bool),
+		fileChanged: make(chan bool),
+		dirChanged:  make(chan bool),
 	}
-	journalDir, err := openWatchedJournalDir(dir, r.changed)
+	journalDir, err := openWatchedJournalDir(dir, r.dirChanged)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +36,7 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 		return nil, err
 	}
 	if journalDir.isLast(journalFile) {
-		r.file, err = openWatchedFile(journalFile.fileName, r.changed)
+		r.file, err = openWatchedFile(journalFile.fileName, r.fileChanged)
 	} else {
 		r.file, err = os.Open(journalFile.fileName)
 	}
@@ -63,12 +65,15 @@ func (r *Reader) Read() (msg []byte, err error) {
 		if err == io.EOF {
 			if r.journalDir.isLast(r.journalFile) {
 				select {
-				case <-r.changed:
-					// fmt.Println("changed")
+				case <-r.fileChanged:
+					// fmt.Println("file changed")
+					continue
+				case <-r.dirChanged:
+					// fmt.Println("dir changed")
 				case <-time.After(notifyTimeout):
 					// fmt.Println("timeout")
+					continue
 				}
-				continue
 			}
 			if err := r.moveToNextFile(); err != nil {
 				return nil, err
@@ -93,7 +98,7 @@ func (r *Reader) moveToNextFile() error {
 	}
 	r.closeFile()
 	if r.journalDir.isLast(journalFile) {
-		r.file, err = openWatchedFile(journalFile.fileName, r.changed)
+		r.file, err = openWatchedFile(journalFile.fileName, r.fileChanged)
 	} else {
 		r.file, err = os.Open(journalFile.fileName)
 	}
