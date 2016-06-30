@@ -97,6 +97,37 @@ func TestWriteReopen(t *testing.T) {
 	}
 }
 
+func TestWriteDetectCorruption(t *testing.T) {
+	path := newTestPath(t)
+	w := newTestWriter(t, path, 9999)
+	writeTestMessages(t, w, "a", "b", "c")
+	closeTestWriter(t, w)
+
+	// corrupt the last message
+	{
+		f, err := os.OpenFile(path+"/0000000000000000.jnl", os.O_RDWR, 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stat, err := f.Stat()
+		if err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+		if err := f.Truncate(stat.Size() - 1); err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+		f.Close()
+	}
+
+	w, err := NewWriter(path, 9999)
+	if err != ErrCorrupted {
+		defer w.Close()
+		t.Fatalf("expect corruption error but got %v", err)
+	}
+}
+
 func readMessages(t *testing.T, path string, start uint64, n int) (messages []string) {
 	r, err := NewReader(path, start)
 	if err != nil {

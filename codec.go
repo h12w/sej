@@ -1,9 +1,11 @@
 package sej
 
 import (
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
+	"os"
 )
 
 const (
@@ -14,6 +16,10 @@ const (
 
 const (
 	metaSize = 20
+)
+
+var (
+	ErrCorrupted = errors.New("journal file is courrupted")
 )
 
 func writeMessage(w io.Writer, msg []byte, offset uint64) error {
@@ -138,4 +144,19 @@ func readUint32(r io.Reader) (uint32, error) {
 
 func writeCRC(w io.Writer, data []byte) error {
 	return writeUint32(w, crc32.ChecksumIEEE(data))
+}
+
+func getLatestOffset(journalFile *journalFile, file io.ReadSeeker) (uint64, error) {
+	fileSize, err := file.Seek(0, os.SEEK_END)
+	if err != nil {
+		return 0, err
+	}
+	if fileSize == 0 {
+		return journalFile.startOffset, nil
+	}
+	_, offset, err := readMessageBackward(file)
+	if err != nil {
+		return 0, ErrCorrupted
+	}
+	return offset + 1, nil
 }

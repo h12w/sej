@@ -24,34 +24,34 @@ func NewWriter(dir string, segmentSize int) (*Writer, error) {
 	}
 	names, err := openJournalDir(dir)
 	if err != nil {
+		lock.Close()
 		return nil, err
 	}
 	journalFile := names.last()
 	file, err := os.OpenFile(journalFile.fileName, os.O_RDWR, 0644)
 	if err != nil {
+		lock.Close()
 		return nil, err
 	}
-	fileSize, err := file.Seek(0, os.SEEK_END)
+	stat, err := file.Stat()
 	if err != nil {
+		lock.Close()
+		file.Close()
 		return nil, err
 	}
-	var offset uint64
-	if fileSize == 0 {
-		offset = journalFile.startOffset
-	} else {
-		_, offset, err = readMessageBackward(file)
-		if err != nil {
-			return nil, err
-		}
-		offset = offset + 1
+	latestOffset, err := getLatestOffset(journalFile, file)
+	if err != nil {
+		lock.Close()
+		file.Close()
+		return nil, err
 	}
 	return &Writer{
 		dir:         dir,
 		lock:        lock,
 		file:        file,
-		offset:      offset,
+		offset:      latestOffset,
 		segmentSize: segmentSize,
-		fileSize:    int(fileSize),
+		fileSize:    int(stat.Size()),
 		w:           bufio.NewWriter(file),
 	}, nil
 }

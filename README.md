@@ -39,7 +39,7 @@ TODO
 * Write from the last offset (done)
 * Segmentation (done)
 * Lock to prevent other writer (done)
-* startup corruption detection
+* startup corruption detection (done)
 
 ### Cleaner
 
