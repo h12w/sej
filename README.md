@@ -1,8 +1,26 @@
-sej: File-based Segmented Journal (queue)
+sej: File-based Segmented Journal (Queue)
 =========================================
 
-File format
------------
+Directory Structure
+-------------------
+
+```
+[root-dir]/
+    jnl.lck
+    jnl/
+        0000000000000000.jnl
+        000000001f9e521e.jnl
+        ......
+    reader/
+        reader1.ofs
+        reader1.lck
+        reader2.ofs
+        reader2.lck
+        ......
+```
+
+Journal File format
+-------------------
 
 ```
 segment_file = { offset crc32 size message size } .
@@ -20,35 +38,3 @@ All integers are written in the big endian format.
  crc     | the CRC-32 checksum (using the IEEE polynomial) of the message
  size    | the size of the message, allowing reading both forward and backward
  message | the encoded message
-
-TODO
-----
-
-### Reader
-
-* Search offset (done)
-* Read segment files (done)
-* monitoring
-    - dir (done)
-    - append (done)
-    - append or dir (done)
-* Offset persistence
-
-### Writer
-
-* Write from the last offset (done)
-* Segmentation (done)
-* Lock to prevent other writer (done)
-* startup corruption detection (done)
-
-### Cleaner
-
-* delete files according to cleaning rules
-
-### Benchmark
-
-* Writer
-    - Sync
-    - Async
-* Reader
-* Single writer and multiple readers
