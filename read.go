@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 )
 
-const (
-	notifyTimeout = 10 * time.Millisecond
-)
+// const (
+// 	notifyTimeout = 10 * time.Millisecond
+// )
 
 type Reader struct {
 	offset      uint64
@@ -31,11 +30,11 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	journalFile, err := journalDir.find(offset)
+	journalFile, err := journalDir.Find(offset)
 	if err != nil {
 		return nil, err
 	}
-	if journalDir.isLast(journalFile) {
+	if journalDir.IsLast(journalFile) {
 		r.file, err = openWatchedFile(journalFile.fileName, r.fileChanged)
 	} else {
 		r.file, err = os.Open(journalFile.fileName)
@@ -63,16 +62,17 @@ func (r *Reader) Read() (msg []byte, err error) {
 	for {
 		msg, offset, err = readMessage(r.r)
 		if err == io.EOF {
-			if r.journalDir.isLast(r.journalFile) {
+			if r.journalDir.IsLast(r.journalFile) {
 				select {
 				case <-r.fileChanged:
 					// fmt.Println("file changed")
 					continue
 				case <-r.dirChanged:
 					// fmt.Println("dir changed")
-				case <-time.After(notifyTimeout):
-					// fmt.Println("timeout")
-					continue
+
+					// case <-time.After(notifyTimeout):
+					// 		fmt.Println("timeout")
+					// 	continue
 				}
 			}
 			if err := r.moveToNextFile(); err != nil {
@@ -92,12 +92,12 @@ func (r *Reader) Read() (msg []byte, err error) {
 }
 
 func (r *Reader) moveToNextFile() error {
-	journalFile, err := r.journalDir.find(r.offset)
+	journalFile, err := r.journalDir.Find(r.offset)
 	if err != nil {
 		return err
 	}
-	r.closeFile()
-	if r.journalDir.isLast(journalFile) {
+	r.file.Close()
+	if r.journalDir.IsLast(journalFile) {
 		r.file, err = openWatchedFile(journalFile.fileName, r.fileChanged)
 	} else {
 		r.file, err = os.Open(journalFile.fileName)
@@ -114,15 +114,11 @@ func (r *Reader) Offset() uint64 {
 	return r.offset
 }
 
-func (r *Reader) Close() {
-	r.journalDir.close()
-	r.closeFile()
-}
-
-func (r *Reader) closeFile() {
-	if r.file != nil {
-		r.file.Close()
-		r.file = nil
-		r.r = nil
+func (r *Reader) Close() error {
+	err1 := r.journalDir.Close()
+	err2 := r.file.Close()
+	if err1 != nil {
+		return err1
 	}
+	return err2
 }

@@ -34,7 +34,7 @@ func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, e
 	}, nil
 }
 
-func (d *watchedJournalDir) find(offset uint64) (*journalFile, error) {
+func (d *watchedJournalDir) Find(offset uint64) (*journalFile, error) {
 	if err := d.watcher.Err(); err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (d *watchedJournalDir) find(offset uint64) (*journalFile, error) {
 	return d.dir.find(offset)
 }
 
-func (d *watchedJournalDir) isLast(f *journalFile) bool {
+func (d *watchedJournalDir) IsLast(f *journalFile) bool {
 	if err := d.watcher.Err(); err != nil {
 		return true
 	}
@@ -62,7 +62,7 @@ func (d *watchedJournalDir) reload() error {
 	return nil
 }
 
-func (d *watchedJournalDir) close() error {
+func (d *watchedJournalDir) Close() error {
 	return d.watcher.Close()
 }
 
@@ -127,10 +127,8 @@ func (f *watchedFile) Close() error {
 	err2 := f.watcher.Close()
 	if err1 != nil {
 		return err1
-	} else if err2 != nil {
-		return err2
 	}
-	return nil
+	return err2
 }
 
 type changeWatcher struct {

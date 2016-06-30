@@ -31,7 +31,7 @@ TODO
 * monitoring
     - dir (done)
     - append (done)
-    - append or dir
+    - append or dir (done)
 * Lock to prevent deletion
 * Offset persistence
 
@@ -42,3 +42,7 @@ TODO
 * Lock to prevent other writer
 * startup corruption detection
 * startup corruption correction
+
+### Cleaner
+
+* delete files according to cleaning rules
