@@ -156,27 +156,27 @@ func newChangeWatcher(name string, op fsnotify.Op, changedCh chan bool) (*change
 	return w, nil
 }
 
-func (f *changeWatcher) watchEvent() {
-	defer f.wg.Done()
-	for event := range f.watcher.Events {
-		if event.Op&(f.watchedOp) > 0 {
-			f.mu.Lock()
-			f.changed = true
-			f.mu.Unlock()
+func (w *changeWatcher) watchEvent() {
+	defer w.wg.Done()
+	for event := range w.watcher.Events {
+		if event.Op&(w.watchedOp) > 0 {
+			w.mu.Lock()
+			w.changed = true
+			w.mu.Unlock()
 			select {
-			case f.changedCh <- true:
+			case w.changedCh <- true:
 			default:
 			}
 		}
 	}
 }
 
-func (f *changeWatcher) watchError() {
-	defer f.wg.Done()
-	for err := range f.watcher.Errors {
-		f.mu.Lock()
-		f.err = err
-		f.mu.Unlock()
+func (w *changeWatcher) watchError() {
+	defer w.wg.Done()
+	for err := range w.watcher.Errors {
+		w.mu.Lock()
+		w.err = err
+		w.mu.Unlock()
 	}
 }
 
@@ -198,8 +198,8 @@ func (w *changeWatcher) Reset(update func() error) error {
 	return nil
 }
 
-func (f *changeWatcher) Close() error {
-	f.watcher.Close()
-	f.wg.Wait()
+func (w *changeWatcher) Close() error {
+	w.watcher.Close()
+	w.wg.Wait()
 	return nil
 }

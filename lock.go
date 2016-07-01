@@ -8,6 +8,7 @@ import (
 )
 
 var (
+	// ErrLocked is returned when another writer has already gotten the lock
 	ErrLocked = errors.New("file is already locked")
 )
 

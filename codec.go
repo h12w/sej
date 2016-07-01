@@ -19,6 +19,7 @@ const (
 )
 
 var (
+	// ErrCorrupted is returned when the journal file is corrupted
 	ErrCorrupted = errors.New("journal file is courrupted")
 )
 

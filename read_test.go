@@ -27,7 +27,7 @@ func TestReadThrough(t *testing.T) {
 		}
 		nextOffset := uint64(i + 1)
 		if r.Offset() != nextOffset {
-			t.Fatalf("expect offset %s, got %s", nextOffset, r.Offset())
+			t.Fatalf("expect offset %d, got %d", nextOffset, r.Offset())
 		}
 	}
 }
@@ -59,7 +59,7 @@ func TestReadFromOffset(t *testing.T) {
 					}
 					nextOffset := uint64(i + 1)
 					if r.Offset() != nextOffset {
-						t.Fatalf("expect offset %s, got %s", nextOffset, r.Offset())
+						t.Fatalf("expect offset %d, got %d", nextOffset, r.Offset())
 					}
 				}()
 			}

@@ -10,6 +10,7 @@ import (
 // 	notifyTimeout = 10 * time.Millisecond
 // )
 
+// Reader reads segmented journal files
 type Reader struct {
 	offset      uint64
 	file        io.ReadCloser
@@ -19,6 +20,7 @@ type Reader struct {
 	dirChanged  chan bool
 }
 
+// NewReader creates a reader for reading dir starting from offset
 func NewReader(dir string, offset uint64) (*Reader, error) {
 	r := Reader{
 		fileChanged: make(chan bool),
@@ -54,6 +56,7 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	return &r, nil
 }
 
+// Read reads a message and increment the offset
 func (r *Reader) Read() (msg []byte, err error) {
 	var offset uint64
 	for {
@@ -108,10 +111,12 @@ func (r *Reader) moveToNextFile() error {
 	return nil
 }
 
+// Offset returns the current offset of the reader
 func (r *Reader) Offset() uint64 {
 	return r.offset
 }
 
+// Close closes the reader
 func (r *Reader) Close() error {
 	err1 := r.journalDir.Close()
 	err2 := r.file.Close()
