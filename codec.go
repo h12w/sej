@@ -4,14 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	//"github.com/klauspost/crc32"
 	"io"
 	"os"
-)
-
-const (
-	seekSet = iota
-	seekCur
-	seekEnd
 )
 
 const (
@@ -78,14 +73,14 @@ func readMessage(r io.Reader) (msg []byte, offset uint64, _ error) {
 }
 
 func readMessageBackward(r io.ReadSeeker) (msg []byte, offset uint64, _ error) {
-	if _, err := r.Seek(-4, seekCur); err != nil {
+	if _, err := r.Seek(-4, os.SEEK_CUR); err != nil {
 		return nil, 0, err
 	}
 	size, err := readInt32(r)
 	if err != nil {
 		return nil, 0, err
 	}
-	if _, err := r.Seek(-metaSize-int64(size), seekCur); err != nil {
+	if _, err := r.Seek(-metaSize-int64(size), os.SEEK_CUR); err != nil {
 		return nil, 0, err
 	}
 	return readMessage(r)

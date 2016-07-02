@@ -7,6 +7,10 @@ import (
 	"os"
 )
 
+const (
+	defaultBufferSize = 83886080
+)
+
 // Writer writes to segmented journal files
 type Writer struct {
 	dir         string
@@ -30,7 +34,7 @@ func NewWriter(dir string, segmentSize int) (*Writer, error) {
 		return nil, err
 	}
 	journalFile := names.last()
-	file, err := os.OpenFile(journalFile.fileName, os.O_RDWR, 0644)
+	file, err := openOrCreate(journalFile.fileName)
 	if err != nil {
 		lock.Close()
 		return nil, err
@@ -54,7 +58,7 @@ func NewWriter(dir string, segmentSize int) (*Writer, error) {
 		offset:      latestOffset,
 		segmentSize: segmentSize,
 		fileSize:    int(stat.Size()),
-		w:           bufio.NewWriter(file),
+		w:           bufio.NewWriterSize(file, defaultBufferSize),
 	}, nil
 }
 
@@ -74,12 +78,12 @@ func (w *Writer) Append(msg []byte) error {
 			return err
 		}
 		var err error
-		w.file, err = createNewJournalFile(w.dir, w.offset)
+		w.file, err = openOrCreate(journalFileName(w.dir, w.offset))
 		if err != nil {
 			return err
 		}
 		w.fileSize = 0
-		w.w = bufio.NewWriter(w.file)
+		w.w = bufio.NewWriterSize(w.file, defaultBufferSize)
 	}
 	return nil
 }
@@ -89,16 +93,19 @@ func (w *Writer) Offset() uint64 {
 	return w.offset
 }
 
-func (w *Writer) flush() error {
-	if err := w.w.Flush(); err != nil {
-		return err
-	}
+// Flush writes any buffered data from memory to the underlying file
+func (w *Writer) Flush() error {
+	return w.w.Flush()
+}
+
+// Sync calls File.Sync of the current file
+func (w *Writer) Sync() error {
 	return w.file.Sync()
 }
 
 // Close closes the writer, flushes the buffer and syncs the file to the hard drive
 func (w *Writer) Close() error {
-	if err := w.flush(); err != nil {
+	if err := w.w.Flush(); err != nil {
 		return err
 	}
 	if err := w.file.Sync(); err != nil {
@@ -108,4 +115,8 @@ func (w *Writer) Close() error {
 		return err
 	}
 	return w.lock.Close()
+}
+
+func openOrCreate(file string) (*os.File, error) {
+	return os.OpenFile(file, os.O_CREATE|os.O_RDWR|os.O_SYNC, 0644)
 }

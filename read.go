@@ -98,15 +98,19 @@ func (r *Reader) moveToNextFile() error {
 	if err != nil {
 		return err
 	}
-	r.file.Close()
+	var newFile io.ReadCloser
 	if r.journalDir.IsLast(journalFile) {
-		r.file, err = openWatchedFile(journalFile.fileName, r.fileChanged)
+		newFile, err = openWatchedFile(journalFile.fileName, r.fileChanged)
 	} else {
-		r.file, err = os.Open(journalFile.fileName)
+		newFile, err = os.Open(journalFile.fileName)
 	}
 	if err != nil {
 		return err
 	}
+	if err := r.file.Close(); err != nil {
+		return err
+	}
+	r.file = newFile
 	r.journalFile = journalFile
 	return nil
 }

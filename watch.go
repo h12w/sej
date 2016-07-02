@@ -18,7 +18,9 @@ func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, e
 	if err != nil {
 		return nil, err
 	}
-	dirFile.Close()
+	if err := dirFile.Close(); err != nil {
+		return nil, err
+	}
 	watcher, err := newChangeWatcher(dir, fsnotify.Create|fsnotify.Remove, changed)
 	if err != nil {
 		return nil, err
@@ -106,6 +108,9 @@ func (f *watchedFile) reopen() error {
 		return err
 	}
 	newFile, err := os.Open(f.file.Name())
+	if err != nil {
+		return err
+	}
 	if _, err := newFile.Seek(oldOffset, os.SEEK_SET); err != nil {
 		newFile.Close()
 		return err

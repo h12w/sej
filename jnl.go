@@ -26,17 +26,17 @@ const (
 	journalExt = ".jnl"
 )
 
-func createNewJournalFile(dir string, offset uint64) (*os.File, error) {
-	return os.Create(path.Join(dir, fmt.Sprintf("%016x"+journalExt, offset)))
+func journalFileName(dir string, offset uint64) string {
+	return path.Join(dir, fmt.Sprintf("%016x"+journalExt, offset))
 }
 
 func openJournalDir(dir string) (*journalDir, error) {
-	f, err := openOrCreateDir(dir)
+	dirFile, err := openOrCreateDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	allNames, err := f.Readdirnames(-1)
+	defer dirFile.Close()
+	allNames, err := dirFile.Readdirnames(-1)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func openJournalDir(dir string) (*journalDir, error) {
 		})
 	}
 	if len(files) == 0 {
-		f, err := createNewJournalFile(dir, 0)
+		f, err := openOrCreate(journalFileName(dir, 0))
 		if err != nil {
 			return nil, err
 		}

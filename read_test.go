@@ -128,7 +128,7 @@ func closeTestWriter(t *testing.T, w *Writer) {
 }
 
 func flushTestWriter(t *testing.T, w *Writer) {
-	if err := w.flush(); err != nil {
+	if err := w.Flush(); err != nil {
 		t.Fatal(err)
 	}
 }
