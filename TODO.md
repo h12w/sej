@@ -9,6 +9,7 @@ TODO
     - dir (done)
     - append (done)
     - append or dir (done)
+* handle truncation of the last message
 * Offset persistence
 
 ### Writer
@@ -17,6 +18,7 @@ TODO
 * Segmentation (done)
 * Lock to prevent other writer (done)
 * startup corruption detection (done)
+* startup corruption correction
 
 ### Command line tool
 
