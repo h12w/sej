@@ -17,18 +17,10 @@ func BenchmarkWrite(b *testing.B) {
 	}
 	defer w.Close()
 	msg := []byte(strings.Repeat("x", 128))
-	// cnt := 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := w.Append(msg); err != nil {
 			b.Fatal(err)
 		}
-		// cnt++
-		// if cnt == 10 {
-		// 	cnt = 0
-		// 	if err := w.Flush(); err != nil {
-		// 		b.Fatal(err)
-		// 	}
-		// }
 	}
 }

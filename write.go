@@ -3,12 +3,9 @@ package sej
 import (
 	"bufio"
 	"errors"
+	"io"
 	"math"
 	"os"
-)
-
-const (
-	defaultBufferSize = 83886080
 )
 
 // Writer writes to segmented journal files
@@ -58,7 +55,7 @@ func NewWriter(dir string, segmentSize int) (*Writer, error) {
 		offset:      latestOffset,
 		segmentSize: segmentSize,
 		fileSize:    int(stat.Size()),
-		w:           bufio.NewWriterSize(file, defaultBufferSize),
+		w:           newBufferWriter(file),
 	}, nil
 }
 
@@ -83,7 +80,7 @@ func (w *Writer) Append(msg []byte) error {
 			return err
 		}
 		w.fileSize = 0
-		w.w = bufio.NewWriterSize(w.file, defaultBufferSize)
+		w.w = newBufferWriter(w.file)
 	}
 	return nil
 }
@@ -118,5 +115,9 @@ func (w *Writer) Close() error {
 }
 
 func openOrCreate(file string) (*os.File, error) {
-	return os.OpenFile(file, os.O_CREATE|os.O_RDWR|os.O_SYNC, 0644)
+	return os.OpenFile(file, os.O_CREATE|os.O_RDWR, 0644)
+}
+
+func newBufferWriter(w io.Writer) *bufio.Writer {
+	return bufio.NewWriterSize(w, 4096)
 }
