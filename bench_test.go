@@ -1,20 +1,13 @@
 package sej
 
 import (
-	"io/ioutil"
 	"strings"
 	"testing"
 )
 
 func BenchmarkWrite(b *testing.B) {
-	path, err := ioutil.TempDir(".", testPrefix)
-	if err != nil {
-		b.Fatal(err)
-	}
-	w, err := NewWriter(path, 500000000)
-	if err != nil {
-		b.Fatal(err)
-	}
+	path := newTestPath(b)
+	w := newTestWriter(b, path, 500000000)
 	defer w.Close()
 	msg := []byte(strings.Repeat("x", 128))
 	b.ResetTimer()

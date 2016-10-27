@@ -4,12 +4,10 @@ import (
 	"math/rand"
 	"strconv"
 	"testing"
-	"time"
 )
 
 func TestOpenOrCreateDir(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
-	dir := testPrefix + strconv.Itoa(rand.Int())
+	dir := testFilePrefix + strconv.Itoa(rand.Int())
 	d, err := openOrCreateDir(dir)
 	if err != nil {
 		t.Fatal(err)

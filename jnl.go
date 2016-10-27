@@ -26,10 +26,6 @@ const (
 	journalExt = ".jnl"
 )
 
-func journalFileName(dir string, offset uint64) string {
-	return path.Join(dir, fmt.Sprintf("%016x"+journalExt, offset))
-}
-
 func openJournalDir(dir string) (*journalDir, error) {
 	dirFile, err := openOrCreateDir(dir)
 	if err != nil {
@@ -121,3 +117,8 @@ if i == 0 {
 
 journalIndex := i - 1
 */
+
+func journalFileName(dir string, offset uint64) string {
+	// maximum of 64-bit offset is 7fff,ffff,ffff,ffff
+	return path.Join(dir, fmt.Sprintf("%016x"+journalExt, offset))
+}

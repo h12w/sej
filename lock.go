@@ -2,7 +2,6 @@ package sej
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"syscall"
 )
@@ -42,7 +41,6 @@ func (l *fileLock) Close() error {
 			return err
 		}
 		if err := os.Remove(fileName); err != nil {
-			fmt.Println(err)
 			return err
 		}
 	}
