@@ -82,7 +82,7 @@ func verifyReadMessages(t *testing.T, path string, messages ...string) {
 	}
 }
 
-func (f *journalFile) size(t *testing.T) int {
+func (f *JournalFile) size(t *testing.T) int {
 	info, err := os.Stat(f.fileName)
 	if err != nil {
 		t.Fatal(err)

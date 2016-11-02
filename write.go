@@ -42,8 +42,13 @@ func NewWriter(dir string, segmentSize int) (*Writer, error) {
 		file.Close()
 		return nil, err
 	}
-	latestOffset, err := getLatestOffset(journalFile, file)
+	latestOffset, err := journalFile.LatestOffset()
 	if err != nil {
+		lock.Close()
+		file.Close()
+		return nil, err
+	}
+	if _, err := file.Seek(0, os.SEEK_END); err != nil {
 		lock.Close()
 		file.Close()
 		return nil, err
@@ -97,15 +102,15 @@ func (w *Writer) Flush() error {
 
 // Sync calls File.Sync of the current file
 func (w *Writer) Sync() error {
+	if err := w.w.Flush(); err != nil {
+		return err
+	}
 	return w.file.Sync()
 }
 
 // Close closes the writer, flushes the buffer and syncs the file to the hard drive
 func (w *Writer) Close() error {
-	if err := w.w.Flush(); err != nil {
-		return err
-	}
-	if err := w.file.Sync(); err != nil {
+	if err := w.Sync(); err != nil {
 		return err
 	}
 	if err := w.file.Close(); err != nil {

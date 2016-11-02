@@ -38,52 +38,62 @@ func writeMessage(w io.Writer, msg []byte, offset uint64) error {
 	return nil
 }
 
-func readMessage(r io.Reader) (msg []byte, offset uint64, _ error) {
+type Message struct {
+	Offset uint64
+	CRC    uint32
+	Value  []byte
+}
+
+func ReadMessage(r io.Reader) (*Message, error) {
 	offset, err := readUint64(r)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	crc, err := readUint32(r)
 	if err != nil {
-		return nil, offset, err
+		return nil, err
 	}
 	size, err := readInt32(r)
 	if err != nil {
-		return nil, offset, err
+		return nil, err
 	}
-	msg = make([]byte, int(size))
+	msg := make([]byte, int(size))
 	n, err := io.ReadFull(r, msg)
 	if err != nil {
-		return nil, offset, err
+		return nil, err
 	}
 	if n != int(size) {
-		return nil, offset, fmt.Errorf("message is truncated at %d", offset)
+		return nil, fmt.Errorf("message is truncated at %d", offset)
 	}
 	size2, err := readInt32(r)
 	if err != nil && err != io.EOF {
-		return nil, offset, err
+		return nil, err
 	}
 	if size != size2 {
-		return nil, offset, fmt.Errorf("data corruption detected by size2 at %d", offset)
+		return nil, fmt.Errorf("data corruption detected by size2 at %d", offset)
 	}
 	if crc != crc32.ChecksumIEEE(msg) {
-		return nil, offset, fmt.Errorf("data corruption detected by CRC at %d", offset)
+		return nil, fmt.Errorf("data corruption detected by CRC at %d", offset)
 	}
-	return msg, offset, nil
+	return &Message{
+		Offset: offset,
+		CRC:    crc,
+		Value:  msg,
+	}, nil
 }
 
-func readMessageBackward(r io.ReadSeeker) (msg []byte, offset uint64, _ error) {
+func readMessageBackward(r io.ReadSeeker) (*Message, error) {
 	if _, err := r.Seek(-4, os.SEEK_CUR); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	size, err := readInt32(r)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	if _, err := r.Seek(-metaSize-int64(size), os.SEEK_CUR); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	return readMessage(r)
+	return ReadMessage(r)
 }
 
 func writeUint64(w io.Writer, i uint64) error {
@@ -142,7 +152,12 @@ func writeCRC(w io.Writer, data []byte) error {
 	return writeUint32(w, crc32.ChecksumIEEE(data))
 }
 
-func getLatestOffset(journalFile *journalFile, file io.ReadSeeker) (uint64, error) {
+func (journalFile *JournalFile) LatestOffset() (uint64, error) {
+	file, err := os.Open(journalFile.fileName)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
 	fileSize, err := file.Seek(0, os.SEEK_END)
 	if err != nil {
 		return 0, err
@@ -150,9 +165,9 @@ func getLatestOffset(journalFile *journalFile, file io.ReadSeeker) (uint64, erro
 	if fileSize == 0 {
 		return journalFile.startOffset, nil
 	}
-	_, offset, err := readMessageBackward(file)
+	msg, err := readMessageBackward(file)
 	if err != nil {
 		return 0, ErrCorrupted
 	}
-	return offset + 1, nil
+	return msg.Offset + 1, nil
 }

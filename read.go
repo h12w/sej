@@ -15,7 +15,7 @@ type Reader struct {
 	offset      uint64
 	file        io.ReadCloser
 	journalDir  *watchedJournalDir
-	journalFile *journalFile
+	journalFile *JournalFile
 	fileChanged chan bool
 	dirChanged  chan bool
 }
@@ -58,9 +58,9 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 
 // Read reads a message and increment the offset
 func (r *Reader) Read() (msg []byte, err error) {
-	var offset uint64
+	var message *Message
 	for {
-		msg, offset, err = readMessage(r.file)
+		message, err = ReadMessage(r.file)
 		if err == io.EOF {
 			if r.journalDir.IsLast(r.journalFile) {
 				select {
@@ -86,11 +86,11 @@ func (r *Reader) Read() (msg []byte, err error) {
 		}
 		break
 	}
-	if offset != r.offset {
-		return nil, fmt.Errorf("offset is out of order, expect %d but got %d", r.offset, offset)
+	if message.Offset != r.offset {
+		return nil, fmt.Errorf("offset is out of order, expect %d but got %d", r.offset, message.Offset)
 	}
 	r.offset++
-	return msg, nil
+	return message.Value, nil
 }
 
 func (r *Reader) moveToNextFile() error {

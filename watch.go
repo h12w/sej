@@ -36,7 +36,7 @@ func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, e
 	}, nil
 }
 
-func (d *watchedJournalDir) Find(offset uint64) (*journalFile, error) {
+func (d *watchedJournalDir) Find(offset uint64) (*JournalFile, error) {
 	if err := d.watcher.Err(); err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (d *watchedJournalDir) Find(offset uint64) (*journalFile, error) {
 	return d.dir.find(offset)
 }
 
-func (d *watchedJournalDir) IsLast(f *journalFile) bool {
+func (d *watchedJournalDir) IsLast(f *JournalFile) bool {
 	if err := d.watcher.Err(); err != nil {
 		return true
 	}
