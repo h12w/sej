@@ -105,3 +105,26 @@ func newTestPath(t testing.TB) string {
 	}
 	return path
 }
+
+func truncateFile(t testing.TB, file string, offset int) {
+	f, err := os.OpenFile(file, os.O_RDWR, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	stat, err := f.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(stat.Size() - int64(offset)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func fileOffset(t testing.TB, f *os.File) int64 {
+	offset, err := f.Seek(0, os.SEEK_CUR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return offset
+}

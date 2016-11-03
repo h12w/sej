@@ -1,7 +1,6 @@
 package sej
 
 import (
-	"os"
 	"reflect"
 	"testing"
 )
@@ -87,22 +86,7 @@ func TestWriteDetectCorruption(t *testing.T) {
 	closeTestWriter(t, w)
 
 	// corrupt the last message
-	{
-		f, err := os.OpenFile(path+"/0000000000000000.jnl", os.O_RDWR, 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
-		stat, err := f.Stat()
-		if err != nil {
-			f.Close()
-			t.Fatal(err)
-		}
-		if err := f.Truncate(stat.Size() - 1); err != nil {
-			f.Close()
-			t.Fatal(err)
-		}
-		f.Close()
-	}
+	truncateFile(t, path+"/0000000000000000.jnl", 1)
 
 	w, err := NewWriter(path, defaultSegmentSize)
 	if err != ErrCorrupted {

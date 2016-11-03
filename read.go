@@ -13,7 +13,7 @@ import (
 // Reader reads segmented journal files
 type Reader struct {
 	offset      uint64
-	file        io.ReadCloser
+	file        readSeekCloser
 	journalDir  *watchedJournalDir
 	journalFile *JournalFile
 	fileChanged chan bool
@@ -98,7 +98,7 @@ func (r *Reader) moveToNextFile() error {
 	if err != nil {
 		return err
 	}
-	var newFile io.ReadCloser
+	var newFile readSeekCloser
 	if r.journalDir.IsLast(journalFile) {
 		newFile, err = openWatchedFile(journalFile.fileName, r.fileChanged)
 	} else {

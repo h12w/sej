@@ -9,7 +9,7 @@ TODO
     - dir (done)
     - append (done)
     - append or dir (done)
-* handle truncation of the last message
+* handle truncation of the last message (done)
 * Offset persistence
 
 ### Writer

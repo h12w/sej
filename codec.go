@@ -44,35 +44,48 @@ type Message struct {
 	Value  []byte
 }
 
-func ReadMessage(r io.Reader) (*Message, error) {
+type readSeekCloser interface {
+	io.Reader
+	io.Seeker
+	io.Closer
+}
+
+func ReadMessage(r io.ReadSeeker) (*Message, error) {
 	offset, err := readUint64(r)
 	if err != nil {
 		return nil, err
 	}
 	crc, err := readUint32(r)
 	if err != nil {
+		r.Seek(-8, io.SeekCurrent)
 		return nil, err
 	}
 	size, err := readInt32(r)
 	if err != nil {
+		r.Seek(-12, io.SeekCurrent)
 		return nil, err
 	}
 	msg := make([]byte, int(size))
 	n, err := io.ReadFull(r, msg)
 	if err != nil {
+		r.Seek(-16-int64(n), io.SeekCurrent)
 		return nil, err
 	}
 	if n != int(size) {
+		r.Seek(-16-int64(n), io.SeekCurrent)
 		return nil, fmt.Errorf("message is truncated at %d", offset)
 	}
 	size2, err := readInt32(r)
 	if err != nil && err != io.EOF {
+		r.Seek(-16-int64(n), io.SeekCurrent)
 		return nil, err
 	}
 	if size != size2 {
+		r.Seek(-16-int64(n), io.SeekCurrent)
 		return nil, fmt.Errorf("data corruption detected by size2 at %d", offset)
 	}
 	if crc != crc32.ChecksumIEEE(msg) {
+		r.Seek(-16-int64(n), io.SeekCurrent)
 		return nil, fmt.Errorf("data corruption detected by CRC at %d", offset)
 	}
 	return &Message{
@@ -101,10 +114,11 @@ func writeUint64(w io.Writer, i uint64) error {
 	return err
 }
 
-func readUint64(r io.Reader) (uint64, error) {
+func readUint64(r io.ReadSeeker) (uint64, error) {
 	var b [8]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
+		r.Seek(int64(-n), io.SeekCurrent)
 		return 0, err
 	}
 	if n != 8 {
@@ -119,10 +133,11 @@ func writeInt32(w io.Writer, i int32) error {
 	return err
 }
 
-func readInt32(r io.Reader) (int32, error) {
+func readInt32(r io.ReadSeeker) (int32, error) {
 	var b [4]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
+		r.Seek(int64(-n), io.SeekCurrent)
 		return 0, err
 	}
 	if n != 4 {
@@ -136,10 +151,11 @@ func writeUint32(w io.Writer, i uint32) error {
 	return err
 }
 
-func readUint32(r io.Reader) (uint32, error) {
+func readUint32(r io.ReadSeeker) (uint32, error) {
 	var b [4]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
+		r.Seek(int64(-n), io.SeekCurrent)
 		return 0, err
 	}
 	if n != 4 {

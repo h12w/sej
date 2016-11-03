@@ -89,6 +89,10 @@ func openWatchedFile(name string, changed chan bool) (*watchedFile, error) {
 	}, nil
 }
 
+func (f *watchedFile) Seek(offset int64, whence int) (int64, error) {
+	return f.file.Seek(offset, whence)
+}
+
 func (f *watchedFile) Read(p []byte) (n int, err error) {
 	if err := f.watcher.Err(); err != nil {
 		return 0, err
@@ -169,8 +173,8 @@ func (w *changeWatcher) watchEvent() {
 			w.changed = true
 			w.mu.Unlock()
 			select {
-			case w.changedCh <- true:
-			default:
+			case w.changedCh <- true: // send
+			default: // or skip
 			}
 		}
 	}
