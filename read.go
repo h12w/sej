@@ -13,20 +13,19 @@ import (
 // Reader reads segmented journal files
 type Reader struct {
 	offset      uint64
-	file        readSeekCloser
 	journalDir  *watchedJournalDir
 	journalFile *JournalFile
-	fileChanged chan bool
-	dirChanged  chan bool
+	file        watchedReadSeekCloser
+}
+type watchedReadSeekCloser interface {
+	readSeekCloser
+	Watch() chan bool
 }
 
 // NewReader creates a reader for reading dir starting from offset
 func NewReader(dir string, offset uint64) (*Reader, error) {
-	r := Reader{
-		fileChanged: make(chan bool),
-		dirChanged:  make(chan bool),
-	}
-	journalDir, err := openWatchedJournalDir(dir, r.dirChanged)
+	r := Reader{}
+	journalDir, err := openWatchedJournalDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -35,9 +34,9 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 		return nil, err
 	}
 	if journalDir.IsLast(journalFile) {
-		r.file, err = openWatchedFile(journalFile.fileName, r.fileChanged)
+		r.file, err = openWatchedFile(journalFile.fileName)
 	} else {
-		r.file, err = os.Open(journalFile.fileName)
+		r.file, err = openDummyWatchedFile(journalFile.fileName)
 	}
 	if err != nil {
 		return nil, err
@@ -60,25 +59,23 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 func (r *Reader) Read() (msg []byte, err error) {
 	var message *Message
 	for {
+		fileChanged, dirChanged := r.file.Watch(), r.journalDir.Watch()
 		message, err = ReadMessage(r.file)
 		if err == io.EOF {
 			if r.journalDir.IsLast(r.journalFile) {
 				select {
-				case <-r.fileChanged:
-					// fmt.Println("file changed")
-					continue
-				case <-r.dirChanged:
-					// fmt.Println("dir changed")
-
+				case <-fileChanged:
+					continue // read message again
+				case <-dirChanged:
+					if err := r.reopenFile(); err != nil {
+						return nil, err
+					}
 					// case <-time.After(notifyTimeout):
 					// 		fmt.Println("timeout")
 					// 	continue
 				}
-			}
-			if !r.journalDir.IsLast(r.journalFile) {
-				if err := r.moveToNextFile(); err != nil {
-					return nil, err
-				}
+			} else if err := r.reopenFile(); err != nil {
+				return nil, err
 			}
 			continue
 		} else if err != nil {
@@ -93,16 +90,16 @@ func (r *Reader) Read() (msg []byte, err error) {
 	return message.Value, nil
 }
 
-func (r *Reader) moveToNextFile() error {
+func (r *Reader) reopenFile() error {
 	journalFile, err := r.journalDir.Find(r.offset)
 	if err != nil {
 		return err
 	}
-	var newFile readSeekCloser
+	var newFile watchedReadSeekCloser
 	if r.journalDir.IsLast(journalFile) {
-		newFile, err = openWatchedFile(journalFile.fileName, r.fileChanged)
+		newFile, err = openWatchedFile(journalFile.fileName)
 	} else {
-		newFile, err = os.Open(journalFile.fileName)
+		newFile, err = openDummyWatchedFile(journalFile.fileName)
 	}
 	if err != nil {
 		return err
@@ -129,3 +126,17 @@ func (r *Reader) Close() error {
 	}
 	return err2
 }
+
+type dummyWatchedFile struct {
+	*os.File
+}
+
+func openDummyWatchedFile(file string) (*dummyWatchedFile, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	return &dummyWatchedFile{File: f}, nil
+}
+
+func (f *dummyWatchedFile) Watch() chan bool { return nil }

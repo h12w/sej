@@ -12,12 +12,13 @@ import (
 // Writer writes to segmented journal files
 type Writer struct {
 	dir         string
-	lock        *fileLock
 	offset      uint64
 	w           *bufio.Writer
 	file        *os.File
 	fileSize    int
 	segmentSize int
+	err         error
+	lock        *fileLock
 	mu          sync.Mutex
 }
 
@@ -70,22 +71,28 @@ func NewWriter(dir string, segmentSize int) (*Writer, error) {
 func (w *Writer) Append(msg []byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.err != nil { // skip if an error already happens
+		return w.err
+	}
 	size := len(msg)
 	if size > math.MaxInt32 {
 		return errors.New("message is too long")
 	}
 	if err := writeMessage(w.w, msg, w.offset); err != nil {
+		w.err = err
 		return err
 	}
 	w.offset++
 	w.fileSize += metaSize + len(msg)
 	if w.fileSize >= w.segmentSize {
 		if err := w.closeFile(); err != nil {
+			w.err = err
 			return err
 		}
 		var err error
 		w.file, err = openOrCreate(journalFileName(w.dir, w.offset))
 		if err != nil {
+			w.err = err
 			return err
 		}
 		w.fileSize = 0

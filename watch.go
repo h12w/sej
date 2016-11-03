@@ -13,7 +13,7 @@ type watchedJournalDir struct {
 	watcher *changeWatcher
 }
 
-func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, error) {
+func openWatchedJournalDir(dir string) (*watchedJournalDir, error) {
 	dirFile, err := openOrCreateDir(dir)
 	if err != nil {
 		return nil, err
@@ -21,7 +21,7 @@ func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, e
 	if err := dirFile.Close(); err != nil {
 		return nil, err
 	}
-	watcher, err := newChangeWatcher(dir, fsnotify.Create|fsnotify.Remove, changed)
+	watcher, err := newChangeWatcher(dir, fsnotify.Create|fsnotify.Remove)
 	if err != nil {
 		return nil, err
 	}
@@ -36,23 +36,25 @@ func openWatchedJournalDir(dir string, changed chan bool) (*watchedJournalDir, e
 	}, nil
 }
 
+func (d *watchedJournalDir) Watch() chan bool {
+	return d.watcher.Watch()
+}
+
 func (d *watchedJournalDir) Find(offset uint64) (*JournalFile, error) {
 	if err := d.watcher.Err(); err != nil {
 		return nil, err
 	}
-	if err := d.watcher.Reset(d.reload); err != nil {
+	if err := d.reload(); err != nil {
 		return nil, err
 	}
 	return d.dir.find(offset)
 }
 
 func (d *watchedJournalDir) IsLast(f *JournalFile) bool {
-	if err := d.watcher.Err(); err != nil {
-		return true
+	if !d.dir.isLast(f) {
+		return false
 	}
-	if err := d.watcher.Reset(d.reload); err != nil {
-		return true
-	}
+	d.reload()
 	return d.dir.isLast(f)
 }
 func (d *watchedJournalDir) reload() error {
@@ -73,8 +75,8 @@ type watchedFile struct {
 	watcher *changeWatcher
 }
 
-func openWatchedFile(name string, changed chan bool) (*watchedFile, error) {
-	watcher, err := newChangeWatcher(name, fsnotify.Write, changed)
+func openWatchedFile(name string) (*watchedFile, error) {
+	watcher, err := newChangeWatcher(name, fsnotify.Write)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +91,10 @@ func openWatchedFile(name string, changed chan bool) (*watchedFile, error) {
 	}, nil
 }
 
+func (f *watchedFile) Watch() chan bool {
+	return f.watcher.Watch()
+}
+
 func (f *watchedFile) Seek(offset int64, whence int) (int64, error) {
 	return f.file.Seek(offset, whence)
 }
@@ -99,7 +105,7 @@ func (f *watchedFile) Read(p []byte) (n int, err error) {
 	}
 	n, err = f.file.Read(p)
 	if err == io.EOF {
-		if err := f.watcher.Reset(f.reopen); err != nil {
+		if err := f.reopen(); err != nil {
 			return n, err
 		}
 		return f.file.Read(p)
@@ -135,17 +141,18 @@ func (f *watchedFile) Close() error {
 	return err2
 }
 
+// changeWatcher compresses multiple change messages into one
 type changeWatcher struct {
 	watcher   *fsnotify.Watcher
 	watchedOp fsnotify.Op
-	changed   bool
-	err       error
-	mu        sync.RWMutex
-	wg        sync.WaitGroup
 	changedCh chan bool
+	wg        sync.WaitGroup
+
+	err error
+	mu  sync.RWMutex
 }
 
-func newChangeWatcher(name string, op fsnotify.Op, changedCh chan bool) (*changeWatcher, error) {
+func newChangeWatcher(name string, op fsnotify.Op) (*changeWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -156,8 +163,8 @@ func newChangeWatcher(name string, op fsnotify.Op, changedCh chan bool) (*change
 	}
 	w := &changeWatcher{
 		watcher:   watcher,
-		watchedOp: fsnotify.Write,
-		changedCh: changedCh,
+		watchedOp: op,
+		changedCh: make(chan bool, 1), // allow at least one message regardless of receiver
 	}
 	w.wg.Add(2)
 	go w.watchEvent()
@@ -165,13 +172,23 @@ func newChangeWatcher(name string, op fsnotify.Op, changedCh chan bool) (*change
 	return w, nil
 }
 
+// Watch returns an empty channel for receiving a single event after the method is called
+func (w *changeWatcher) Watch() chan bool {
+clearChan:
+	for {
+		select {
+		case <-w.changedCh:
+		default:
+			break clearChan
+		}
+	}
+	return w.changedCh
+}
+
 func (w *changeWatcher) watchEvent() {
 	defer w.wg.Done()
 	for event := range w.watcher.Events {
-		if event.Op&(w.watchedOp) > 0 {
-			w.mu.Lock()
-			w.changed = true
-			w.mu.Unlock()
+		if event.Op&w.watchedOp > 0 {
 			select {
 			case w.changedCh <- true: // send
 			default: // or skip
@@ -194,17 +211,6 @@ func (w *changeWatcher) Err() error {
 	err := w.err
 	w.mu.RUnlock()
 	return err
-}
-
-func (w *changeWatcher) Reset(update func() error) error {
-	w.mu.Lock()
-	if err := update(); err != nil {
-		w.mu.Unlock()
-		return err
-	}
-	w.changed = false
-	w.mu.Unlock()
-	return nil
 }
 
 func (w *changeWatcher) Close() error {
