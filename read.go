@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
-// const (
-// 	notifyTimeout = 10 * time.Millisecond
-// )
+var (
+	// NotifyTimeout is the timeout value in rare cases that the OS notification fails
+	// to capture the file/directory change events
+	NotifyTimeout = time.Hour
+)
 
 // Reader reads segmented journal files
 type Reader struct {
@@ -70,9 +73,8 @@ func (r *Reader) Read() (msg []byte, err error) {
 					if err := r.reopenFile(); err != nil {
 						return nil, err
 					}
-					// case <-time.After(notifyTimeout):
-					// 		fmt.Println("timeout")
-					// 	continue
+				case <-time.After(NotifyTimeout):
+					continue
 				}
 			} else if err := r.reopenFile(); err != nil {
 				return nil, err

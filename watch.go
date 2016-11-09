@@ -164,7 +164,7 @@ func newChangeWatcher(name string, op fsnotify.Op) (*changeWatcher, error) {
 	w := &changeWatcher{
 		watcher:   watcher,
 		watchedOp: op,
-		changedCh: make(chan bool, 1), // allow at least one message regardless of receiver
+		changedCh: make(chan bool, 1), // make sure at least one message can be received when needed
 	}
 	w.wg.Add(2)
 	go w.watchEvent()
@@ -190,8 +190,8 @@ func (w *changeWatcher) watchEvent() {
 	for event := range w.watcher.Events {
 		if event.Op&w.watchedOp > 0 {
 			select {
-			case w.changedCh <- true: // send
-			default: // or skip
+			case w.changedCh <- true: // send at least one
+			default: // or skip the rest
 			}
 		}
 	}

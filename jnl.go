@@ -11,6 +11,7 @@ import (
 )
 
 type (
+	// JournalFile represents a unopened journal file
 	JournalFile struct {
 		startOffset uint64
 		fileName    string
@@ -120,6 +121,7 @@ func journalFileName(dir string, offset uint64) string {
 	return path.Join(dir, fmt.Sprintf("%016x"+journalExt, offset))
 }
 
+// ParseJournalFileName parses a journal file name and returns an JournalFile object
 func ParseJournalFileName(dir, name string) (*JournalFile, error) {
 	offset, err := strconv.ParseUint(strings.TrimSuffix(path.Base(name), journalExt), 16, 64)
 	if err != nil {

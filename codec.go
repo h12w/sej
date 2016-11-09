@@ -38,6 +38,7 @@ func writeMessage(w io.Writer, msg []byte, offset uint64) error {
 	return nil
 }
 
+// Message in a segmented journal file
 type Message struct {
 	Offset uint64
 	CRC    uint32
@@ -50,6 +51,8 @@ type readSeekCloser interface {
 	io.Closer
 }
 
+// ReadMessage reads a message from a io.ReadSeeker.
+// When an error occurs, it will rollback the seeker and then returns the original error.
 func ReadMessage(r io.ReadSeeker) (*Message, error) {
 	offset, err := readUint64(r)
 	if err != nil {
@@ -168,6 +171,7 @@ func writeCRC(w io.Writer, data []byte) error {
 	return writeUint32(w, crc32.ChecksumIEEE(data))
 }
 
+// LatestOffset returns the offset after the last message in a journal file
 func (journalFile *JournalFile) LatestOffset() (uint64, error) {
 	file, err := os.Open(journalFile.fileName)
 	if err != nil {
