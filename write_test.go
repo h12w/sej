@@ -88,7 +88,7 @@ func TestWriteDetectCorruption(t *testing.T) {
 	// corrupt the last message
 	truncateFile(t, path+"/0000000000000000.jnl", 1)
 
-	w, err := NewWriter(path, defaultSegmentSize)
+	w, err := NewWriter(path)
 	if err != ErrCorrupted {
 		defer w.Close()
 		t.Fatalf("expect corruption error but got %v", err)

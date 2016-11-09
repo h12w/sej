@@ -19,7 +19,8 @@ type Reader struct {
 	journalDir  *watchedJournalDir
 	journalFile *JournalFile
 	file        watchedReadSeekCloser
-	CheckCRC    bool
+
+	CheckCRC bool // whether or not to check CRC for each message
 }
 type watchedReadSeekCloser interface {
 	readSeekCloser
@@ -63,27 +64,39 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 
 // Read reads a message and increment the offset
 func (r *Reader) Read() (message *Message, err error) {
+	message = &Message{}
 	for {
 		fileChanged, dirChanged := r.file.Watch(), r.journalDir.Watch()
-		message, err = ReadMessage(r.file)
-		if err == io.EOF {
-			if r.journalDir.IsLast(r.journalFile) {
-				select {
-				case <-fileChanged:
-					continue // read message again
-				case <-dirChanged:
-					if err := r.reopenFile(); err != nil {
-						return nil, err
-					}
-				case <-time.After(NotifyTimeout):
-					continue
-				}
-			} else if err := r.reopenFile(); err != nil {
+		n, err := message.ReadFrom(r.file)
+		if err != nil {
+			// rollback the reader
+			if _, seekErr := r.file.Seek(-n, io.SeekCurrent); seekErr != nil {
 				return nil, err
 			}
+
+			// unexpected io error
+			if err != io.EOF {
+				return nil, err
+			}
+
+			// not the last one, open the next journal file
+			if !r.journalDir.IsLast(r.journalFile) {
+				if err := r.reopenFile(); err != nil {
+					return nil, err
+				}
+				continue
+			}
+
+			// the last one, wait for any changes
+			select {
+			case <-dirChanged:
+				if err := r.reopenFile(); err != nil {
+					return nil, err
+				}
+			case <-fileChanged:
+			case <-time.After(NotifyTimeout):
+			}
 			continue
-		} else if err != nil {
-			return nil, err
 		}
 		break
 	}

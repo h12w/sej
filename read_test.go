@@ -20,7 +20,7 @@ func TestReadThroughSegmentBoundary(t *testing.T) {
 
 func TestReadFromOffset(t *testing.T) {
 	messages := []string{"a", "b", "c", "d", "e"}
-	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, defaultSegmentSize} {
+	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 1000} {
 		func() {
 			path := newTestPath(t)
 			w := newTestWriter(t, path, segmentSize)
@@ -55,7 +55,7 @@ func TestReadFromOffset(t *testing.T) {
 
 func TestReadBeforeWrite(t *testing.T) {
 	messages := []string{"a", "b", "c", "d", "e"}
-	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, defaultSegmentSize} {
+	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 1000} {
 		func() {
 			path := newTestPath(t)
 			r, err := NewReader(path, 0)

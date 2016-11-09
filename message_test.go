@@ -1,6 +1,7 @@
 package sej
 
 import (
+	"io"
 	"os"
 	"testing"
 )
@@ -20,11 +21,18 @@ func TestReadTruncated(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer f.Close()
-		if _, err := ReadMessage(f); err == nil {
+		var msg Message
+		n, err := msg.ReadFrom(f)
+		if err == nil {
 			t.Fatal("expect error but got nil")
 		}
 
-		if offset := fileOffset(t, f); offset != 0 {
+		fileOffset, err := f.Seek(-n, io.SeekCurrent)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if offset := fileOffset; offset != 0 {
 			t.Fatalf("cut=%d: expect offset 0 after failed reading, but got %d", cut, offset)
 		}
 	}

@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-const defaultSegmentSize = 9999
-
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -28,13 +26,12 @@ func writeTestMessages(t testing.TB, w *Writer, messages ...string) {
 }
 
 func newTestWriter(t testing.TB, dir string, segmentSize ...int) *Writer {
-	aSegmentSize := defaultSegmentSize
-	if len(segmentSize) == 1 {
-		aSegmentSize = segmentSize[0]
-	}
-	w, err := NewWriter(dir, aSegmentSize)
+	w, err := NewWriter(dir)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(segmentSize) == 1 {
+		w.SegmentSize = segmentSize[0]
 	}
 	return w
 }
@@ -119,12 +116,4 @@ func truncateFile(t testing.TB, file string, offset int) {
 	if err := f.Truncate(stat.Size() - int64(offset)); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func fileOffset(t testing.TB, f *os.File) int64 {
-	offset, err := f.Seek(0, os.SEEK_CUR)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return offset
 }

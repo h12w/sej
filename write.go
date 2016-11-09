@@ -11,80 +11,84 @@ import (
 
 // Writer writes to segmented journal files
 type Writer struct {
-	dir         string
-	offset      uint64
-	w           *bufio.Writer
-	file        *os.File
-	fileSize    int
-	segmentSize int
-	err         error
-	lock        *fileLock
-	mu          sync.Mutex
+	dir     string
+	dirLock *fileLock
+	offset  uint64
+
+	w       *bufio.Writer
+	file    *os.File
+	fileLen int
+
+	err error
+	mu  sync.Mutex
+
+	SegmentSize int
 }
 
 // NewWriter creates a new writer for writing to dir with file size at least segmentSize
-func NewWriter(dir string, segmentSize int) (*Writer, error) {
-	lock, err := openFileLock(dir + ".lck")
+func NewWriter(dir string) (*Writer, error) {
+	dirLock, err := openFileLock(dir + ".lck")
 	if err != nil {
 		return nil, err
 	}
 	names, err := openJournalDir(dir)
 	if err != nil {
-		lock.Close()
+		dirLock.Close()
 		return nil, err
 	}
 	journalFile := names.last()
 	file, err := openOrCreate(journalFile.fileName)
 	if err != nil {
-		lock.Close()
+		dirLock.Close()
 		return nil, err
 	}
 	stat, err := file.Stat()
 	if err != nil {
-		lock.Close()
+		dirLock.Close()
 		file.Close()
 		return nil, err
 	}
 	latestOffset, err := journalFile.LatestOffset()
 	if err != nil {
-		lock.Close()
+		dirLock.Close()
 		file.Close()
 		return nil, err
 	}
 	if _, err := file.Seek(0, os.SEEK_END); err != nil {
-		lock.Close()
+		dirLock.Close()
 		file.Close()
 		return nil, err
 	}
 	return &Writer{
 		dir:         dir,
-		lock:        lock,
+		dirLock:     dirLock,
 		file:        file,
 		offset:      latestOffset,
-		segmentSize: segmentSize,
-		fileSize:    int(stat.Size()),
+		fileLen:     int(stat.Size()),
 		w:           newBufferWriter(file),
+		SegmentSize: 1024 * 1024 * 1024,
 	}, nil
 }
 
 // Append appends a message to the journal
-func (w *Writer) Append(msg []byte) error {
+func (w *Writer) Append(message []byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.err != nil { // skip if an error already happens
 		return w.err
 	}
-	size := len(msg)
-	if size > math.MaxInt32 {
+	if len(message) > math.MaxInt32 {
 		return errors.New("message is too long")
 	}
-	if err := writeMessage(w.w, msg, w.offset); err != nil {
+	msg := Message{Value: message, Offset: w.offset}
+	numWritten, err := msg.WriteTo(w.w)
+	w.fileLen += int(numWritten)
+	if err != nil {
 		w.err = err
 		return err
 	}
 	w.offset++
-	w.fileSize += metaSize + len(msg)
-	if w.fileSize >= w.segmentSize {
+	if w.fileLen >= w.SegmentSize {
 		if err := w.closeFile(); err != nil {
 			w.err = err
 			return err
@@ -95,7 +99,7 @@ func (w *Writer) Append(msg []byte) error {
 			w.err = err
 			return err
 		}
-		w.fileSize = 0
+		w.fileLen = 0
 		w.w = newBufferWriter(w.file)
 	}
 	return nil
@@ -129,7 +133,7 @@ func (w *Writer) Close() error {
 	if err := w.closeFile(); err != nil {
 		return err
 	}
-	return w.lock.Close()
+	return w.dirLock.Close()
 }
 
 func (w *Writer) closeFile() error {
