@@ -67,7 +67,7 @@ func readMessages(t *testing.T, path string, start uint64, n int) (messages []st
 		if r.Offset() != offset {
 			t.Fatalf("offset: expect %d but read %d", offset, r.Offset())
 		}
-		messages = append(messages, string(msg))
+		messages = append(messages, string(msg.Value))
 	}
 	return messages
 }

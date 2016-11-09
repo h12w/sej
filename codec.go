@@ -16,6 +16,8 @@ const (
 var (
 	// ErrCorrupted is returned when the journal file is corrupted
 	ErrCorrupted = errors.New("journal file is courrupted")
+	// ErrCRC is returned when the CRC of an message value does not match the stored CRC
+	ErrCRC = errors.New("CRC mismatch")
 )
 
 func writeMessage(w io.Writer, msg []byte, offset uint64) error {
@@ -87,15 +89,18 @@ func ReadMessage(r io.ReadSeeker) (*Message, error) {
 		r.Seek(-16-int64(n), io.SeekCurrent)
 		return nil, fmt.Errorf("data corruption detected by size2 at %d", offset)
 	}
-	if crc != crc32.ChecksumIEEE(msg) {
-		r.Seek(-16-int64(n), io.SeekCurrent)
-		return nil, fmt.Errorf("data corruption detected by CRC at %d", offset)
-	}
 	return &Message{
 		Offset: offset,
 		CRC:    crc,
 		Value:  msg,
 	}, nil
+}
+
+func (m *Message) checkCRC() error {
+	if m.CRC != crc32.ChecksumIEEE(m.Value) {
+		return ErrCRC
+	}
+	return nil
 }
 
 func readMessageBackward(r io.ReadSeeker) (*Message, error) {

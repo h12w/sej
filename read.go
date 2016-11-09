@@ -19,6 +19,7 @@ type Reader struct {
 	journalDir  *watchedJournalDir
 	journalFile *JournalFile
 	file        watchedReadSeekCloser
+	CheckCRC    bool
 }
 type watchedReadSeekCloser interface {
 	readSeekCloser
@@ -27,7 +28,9 @@ type watchedReadSeekCloser interface {
 
 // NewReader creates a reader for reading dir starting from offset
 func NewReader(dir string, offset uint64) (*Reader, error) {
-	r := Reader{}
+	r := Reader{
+		CheckCRC: true,
+	}
 	journalDir, err := openWatchedJournalDir(dir)
 	if err != nil {
 		return nil, err
@@ -59,8 +62,7 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 }
 
 // Read reads a message and increment the offset
-func (r *Reader) Read() (msg []byte, err error) {
-	var message *Message
+func (r *Reader) Read() (message *Message, err error) {
 	for {
 		fileChanged, dirChanged := r.file.Watch(), r.journalDir.Watch()
 		message, err = ReadMessage(r.file)
@@ -85,11 +87,20 @@ func (r *Reader) Read() (msg []byte, err error) {
 		}
 		break
 	}
+
+	// check offset
 	if message.Offset != r.offset {
 		return nil, fmt.Errorf("offset is out of order, expect %d but got %d", r.offset, message.Offset)
 	}
 	r.offset++
-	return message.Value, nil
+
+	if r.CheckCRC {
+		if err := message.checkCRC(); err != nil {
+			return message, err
+		}
+	}
+
+	return message, nil
 }
 
 func (r *Reader) reopenFile() error {

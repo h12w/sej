@@ -39,7 +39,7 @@ func TestReadFromOffset(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					actualMsg := string(msg)
+					actualMsg := string(msg.Value)
 					if actualMsg != expectedMsg {
 						t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
 					}
@@ -77,7 +77,7 @@ func TestReadBeforeWrite(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				actualMsg, expectedMsg := string(msg), messages[i]
+				actualMsg, expectedMsg := string(msg.Value), messages[i]
 				if actualMsg != expectedMsg {
 					t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
 				}
