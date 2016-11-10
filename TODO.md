@@ -19,7 +19,7 @@ TODO
 * Segmentation (done)
 * Lock to prevent other writer (done)
 * startup corruption detection (done)
-* startup corruption correction
+* startup corruption correction (done)
 
 ### Command line tool
 

@@ -21,8 +21,9 @@ func main() {
 	defer file.Close()
 	switch os.Args[1] {
 	case "dump":
+		var msg sej.Message
 		for {
-			msg, err := sej.ReadMessage(file)
+			_, err := msg.ReadFrom(file)
 			if err != nil {
 				if err == io.EOF {
 					fmt.Println("(EOF)")

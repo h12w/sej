@@ -14,10 +14,7 @@ const (
 )
 
 var (
-	// ErrCorrupted is returned when the journal file is corrupted
-	ErrCorrupted = errors.New("journal file is courrupted")
-	// ErrCRC is returned when the CRC of an message value does not match the stored CRC
-	ErrCRC = errors.New("CRC mismatch")
+	errMessageCorrupted = errors.New("last message of the journal file is courrupted")
 )
 
 // Message in a segmented journal file
@@ -92,14 +89,16 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	cnt += int64(nn)
 	if err != nil {
 		return cnt, err
-	} else if nn != int(msgLen) {
+	}
+	if nn != int(msgLen) {
 		return cnt, fmt.Errorf("message is truncated at %d", m.Offset)
 	}
 	nn, err = readInt32(r, &msgLen2)
 	cnt += int64(nn)
-	if err != nil && err != io.EOF {
+	if err != nil {
 		return cnt, err
-	} else if msgLen != msgLen2 {
+	}
+	if msgLen != msgLen2 {
 		return cnt, fmt.Errorf("data corruption detected by size2 at %d", m.Offset)
 	}
 
@@ -201,7 +200,7 @@ func (journalFile *JournalFile) LatestOffset() (uint64, error) {
 	}
 	msg, err := readMessageBackward(file)
 	if err != nil {
-		return 0, ErrCorrupted
+		return 0, errMessageCorrupted
 	}
 	return msg.Offset + 1, nil
 }

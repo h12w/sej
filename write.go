@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"io/ioutil"
 	"math"
 	"os"
 	"sync"
@@ -52,7 +53,11 @@ func NewWriter(dir string) (*Writer, error) {
 	if err != nil {
 		dirLock.Close()
 		file.Close()
-		return nil, err
+		if err != errMessageCorrupted {
+			return nil, err
+		}
+		bad, fixErr := truncateCorruption(journalFile.fileName)
+		return nil, &CorruptionError{File: journalFile.fileName, Message: bad, Err: err, FixErr: fixErr}
 	}
 	if _, err := file.Seek(0, os.SEEK_END); err != nil {
 		dirLock.Close()
@@ -155,4 +160,35 @@ func openOrCreate(file string) (*os.File, error) {
 
 func newBufferWriter(w io.Writer) *bufio.Writer {
 	return bufio.NewWriterSize(w, 4096)
+}
+
+func truncateCorruption(file string) (bad []byte, err error) {
+	f, err := os.OpenFile(file, os.O_RDWR, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var msg Message
+	for {
+		n, err := msg.ReadFrom(f)
+		if err != nil {
+			switch err {
+			case io.EOF, io.ErrUnexpectedEOF:
+				offset, err := f.Seek(-n, io.SeekCurrent)
+				if err != nil {
+					return nil, err
+				}
+				truncatedMsg, err := ioutil.ReadAll(f)
+				if err != nil {
+					return nil, err
+				}
+				if err := f.Truncate(offset); err != nil {
+					return nil, err
+				}
+				return truncatedMsg, nil
+			default:
+				return nil, err
+			}
+		}
+	}
 }

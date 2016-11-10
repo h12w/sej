@@ -85,12 +85,26 @@ func TestWriteDetectCorruption(t *testing.T) {
 	writeTestMessages(t, w, "a", "b", "c")
 	closeTestWriter(t, w)
 
+	file := path + "/0000000000000000.jnl"
 	// corrupt the last message
-	truncateFile(t, path+"/0000000000000000.jnl", 1)
+	truncateFile(t, file, 1)
 
+	// 1st time
 	w, err := NewWriter(path)
-	if err != ErrCorrupted {
-		defer w.Close()
+	if err == nil {
+		w.Close()
+	}
+	if _, ok := err.(*CorruptionError); !ok {
 		t.Fatalf("expect corruption error but got %v", err)
 	}
+
+	// 2nd time
+	w, err = NewWriter(path)
+	if err == nil {
+		w.Close()
+	}
+	if err != nil {
+		t.Fatalf("expect corruption fixed but got: %v", err)
+	}
+
 }

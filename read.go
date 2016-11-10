@@ -75,7 +75,9 @@ func (r *Reader) Read() (message *Message, err error) {
 			}
 
 			// unexpected io error
-			if err != io.EOF {
+			switch err {
+			case io.EOF, io.ErrUnexpectedEOF:
+			default:
 				return nil, err
 			}
 
