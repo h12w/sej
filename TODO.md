@@ -11,7 +11,7 @@ TODO
     - append or dir (done)
 * handle truncation of the last message (done)
 * optional checking CRC (done)
-* Offset persistence
+* Offset persistence (done)
 
 ### Writer
 
