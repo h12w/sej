@@ -25,7 +25,7 @@ TODO
 
 * dump (done)
 * last-offset (done)
-* tail
+* tail (done)
 * range
 * count
 * rollback

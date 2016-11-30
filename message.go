@@ -4,13 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"hash/crc32"
+	"time"
 	//"github.com/klauspost/crc32"
 	"io"
 	"os"
 )
 
 const (
-	metaSize = 20
+	metaSize = 28
 )
 
 var (
@@ -19,9 +20,10 @@ var (
 
 // Message in a segmented journal file
 type Message struct {
-	Offset uint64
-	CRC    uint32
-	Value  []byte
+	Offset    uint64
+	CRC       uint32
+	Timestamp time.Time
+	Value     []byte
 }
 
 type readSeekCloser interface {
@@ -40,26 +42,41 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 	if err != nil {
 		return cnt, err
 	}
+
+	ts := m.Timestamp
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+	n, err = writeInt64(w, ts.UnixNano())
+	cnt += int64(n)
+	if err != nil {
+		return cnt, err
+	}
+
 	n, err = writeCRC(w, m.Value)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
 	}
+
 	n, err = writeInt32(w, msgLen)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
 	}
+
 	n, err = w.Write(m.Value)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
 	}
+
 	n, err = writeInt32(w, msgLen)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
 	}
+
 	return cnt, nil
 }
 
@@ -74,16 +91,27 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	if err != nil {
 		return cnt, err
 	}
+
+	var unixNano int64
+	nn, err = readInt64(r, &unixNano)
+	cnt += int64(nn)
+	if err != nil {
+		return cnt, err
+	}
+	m.Timestamp = time.Unix(0, unixNano)
+
 	nn, err = readUint32(r, &m.CRC)
 	cnt += int64(nn)
 	if err != nil {
 		return cnt, err
 	}
+
 	nn, err = readInt32(r, &msgLen)
 	cnt += int64(nn)
 	if err != nil {
 		return cnt, err
 	}
+
 	m.Value = make([]byte, int(msgLen))
 	nn, err = io.ReadFull(r, m.Value)
 	cnt += int64(nn)
@@ -93,6 +121,7 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	if nn != int(msgLen) {
 		return cnt, fmt.Errorf("message is truncated at %d", m.Offset)
 	}
+
 	nn, err = readInt32(r, &msgLen2)
 	cnt += int64(nn)
 	if err != nil {
@@ -126,6 +155,24 @@ func readMessageBackward(r io.ReadSeeker) (*Message, error) {
 	var msg Message
 	_, err := msg.ReadFrom(r)
 	return &msg, err
+}
+
+func writeInt64(w io.Writer, i int64) (int, error) {
+	return w.Write([]byte{byte(i >> 56), byte(i >> 48), byte(i >> 40), byte(i >> 32), byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
+}
+
+func readInt64(r io.ReadSeeker, i *int64) (int, error) {
+	var b [8]byte
+	n, err := io.ReadFull(r, b[:])
+	if err != nil {
+		return n, err
+	}
+	if n != 8 {
+		return n, fmt.Errorf("int64 is truncated (%d)", n)
+	}
+	*i = int64(b[0])<<56 | int64(b[1])<<48 | int64(b[2])<<40 | int64(b[3])<<32 |
+		int64(b[4])<<24 | int64(b[5])<<16 | int64(b[6])<<8 | int64(b[7])
+	return n, nil
 }
 
 func writeUint64(w io.Writer, i uint64) (int, error) {

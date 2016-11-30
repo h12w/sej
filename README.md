@@ -23,8 +23,9 @@ Journal File format
 -------------------
 
 ```
-segment_file = { offset crc32 size message size } .
+segment_file = { offset timestamp crc size message size } .
 offset       = uint64    .
+timestamp    = int64     .
 crc          = uint32    .
 size         = int32     .
 message      = { uint8 } .
@@ -32,9 +33,10 @@ message      = { uint8 } .
 
 All integers are written in the big endian format.
 
- name    | description
--------- | -----------------------------------------------------------
- offset  | the position of the message in the queue
- crc     | the CRC-32 checksum (using the IEEE polynomial) of the message
- size    | the size of the message, allowing reading both forward and backward
- message | the encoded message
+ name      | description
+--------   | -----------------------------------------------------------
+ offset    | the position of the message in the queue
+ crc       | the CRC-32 checksum (using the IEEE polynomial) of the message
+ timestamp | the timestamp represented in nanoseconds since Unix Epoch
+ size      | the size of the message, allowing reading both forward and backward
+ message   | the encoded message
