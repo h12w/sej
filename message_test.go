@@ -13,7 +13,7 @@ func TestReadTruncated(t *testing.T) {
 		writeTestMessages(t, w, "a")
 		closeTestWriter(t, w)
 
-		file := path + "/0000000000000000.jnl"
+		file := JournalDirPath(path) + "/0000000000000000.jnl"
 		truncateFile(t, file, cut)
 
 		f, err := os.Open(file)

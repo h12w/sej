@@ -136,3 +136,7 @@ func ParseJournalFileName(dir, name string) (*JournalFile, error) {
 		FileName:    path.Join(dir, name),
 	}, nil
 }
+
+func JournalDirPath(dir string) string {
+	return path.Join(dir, "jnl")
+}

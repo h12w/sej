@@ -11,7 +11,7 @@ Directory Structure
         0000000000000000.jnl
         000000001f9e521e.jnl
         ......
-    reader/
+    ofs/
         reader1.ofs
         reader1.lck
         reader2.ofs

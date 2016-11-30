@@ -5,8 +5,6 @@ import (
 	"io"
 	"os"
 	"time"
-
-	"h12.me/errors"
 )
 
 var (
@@ -29,18 +27,19 @@ type watchedReadSeekCloser interface {
 	Watch() chan bool
 }
 
-// NewReader creates a reader for reading dir starting from offset
+// NewReader creates a reader for reading dir/jnl starting from offset
 func NewReader(dir string, offset uint64) (*Reader, error) {
+	dir = JournalDirPath(dir)
 	r := Reader{
 		CheckCRC: true,
 	}
 	journalDir, err := openWatchedJournalDir(dir)
 	if err != nil {
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	journalFile, err := journalDir.Find(offset)
 	if err != nil {
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	if journalDir.IsLast(journalFile) {
 		r.file, err = openWatchedFile(journalFile.FileName)
@@ -48,14 +47,14 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 		r.file, err = openDummyWatchedFile(journalFile.FileName)
 	}
 	if err != nil {
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	r.offset = journalFile.StartOffset
 	r.journalFile = journalFile
 	r.journalDir = journalDir
 	for r.offset < offset {
 		if _, err := r.Read(); err != nil {
-			return nil, errors.Wrap(err)
+			return nil, err
 		}
 	}
 	if r.offset != offset {

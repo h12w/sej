@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
-	"h12.me/errors"
 	"h12.me/sej"
 	"h12.me/uuid/hexid"
 )
@@ -70,12 +69,12 @@ type TailCommand struct {
 func (c *TailCommand) Execute(args []string) error {
 	dir, err := sej.OpenJournalDir(c.Dir)
 	if err != nil {
-		return errors.Wrap(err)
+		return err
 	}
 	earlist := dir.First().StartOffset
 	latest, err := dir.Last().LastOffset()
 	if err != nil {
-		return errors.Wrap(err)
+		return err
 	}
 	offset := latest - c.Count
 	if offset < earlist {
@@ -83,12 +82,12 @@ func (c *TailCommand) Execute(args []string) error {
 	}
 	reader, err := sej.NewReader(c.Dir, offset)
 	if err != nil {
-		return errors.Wrap(err)
+		return err
 	}
 	for i := 0; i < int(c.Count); i++ {
 		msg, err := reader.Read()
 		if err != nil {
-			return errors.Wrap(err)
+			return err
 		}
 		switch c.Format {
 		case "json", "msgpack":
@@ -115,4 +114,22 @@ func (format Format) Sprint(value []byte) (string, error) {
 		return string(buf), nil
 	}
 	return string(value), nil
+}
+
+type CleanCommand struct {
+	Dir string `
+		long:"dir"
+		description:"directory of the root directory"`
+	Max int `
+		long:"max"
+		default:"2"
+		description:"max number of journal files kept after cleanning"`
+}
+
+func (c *CleanCommand) Execute(args []string) error {
+	// find slowest reader
+	// find all journal files and determine which ones to clean by "max"
+	// clean from the earliest file, if sloweast_reader.offset > file.LastOffset()
+	// print warning if a file cannot be cleaned
+	return nil
 }

@@ -3,8 +3,7 @@ package sej
 import "testing"
 
 func TestOffset(t *testing.T) {
-	path := newTestPath(t)
-	dir := path
+	dir := newTestPath(t)
 	name := "reader1"
 	offset, err := NewOffset(dir, name)
 	if err != nil {

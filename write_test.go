@@ -47,7 +47,7 @@ func TestWriteSegment(t *testing.T) {
 			writeTestMessages(t, w, testcase.messages...)
 			closeTestWriter(t, w)
 
-			journalFiles, err := OpenJournalDir(path)
+			journalFiles, err := OpenJournalDir(JournalDirPath(path))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -85,7 +85,7 @@ func TestWriteDetectCorruption(t *testing.T) {
 	writeTestMessages(t, w, "a", "b", "c")
 	closeTestWriter(t, w)
 
-	file := path + "/0000000000000000.jnl"
+	file := JournalDirPath(path) + "/0000000000000000.jnl"
 	// corrupt the last message
 	truncateFile(t, file, 1)
 

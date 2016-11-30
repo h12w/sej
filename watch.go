@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"gopkg.in/fsnotify.v1"
-	"h12.me/errors"
 )
 
 type watchedJournalDir struct {
@@ -17,19 +16,19 @@ type watchedJournalDir struct {
 func openWatchedJournalDir(dir string) (*watchedJournalDir, error) {
 	dirFile, err := openOrCreateDir(dir)
 	if err != nil {
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	if err := dirFile.Close(); err != nil {
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	watcher, err := newChangeWatcher(dir, fsnotify.Create|fsnotify.Remove)
 	if err != nil {
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	journalDir, err := OpenJournalDir(dir)
 	if err != nil {
 		watcher.Close()
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	return &watchedJournalDir{
 		dir:     journalDir,
@@ -156,11 +155,11 @@ type changeWatcher struct {
 func newChangeWatcher(name string, op fsnotify.Op) (*changeWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	if err := watcher.Add(name); err != nil {
 		watcher.Close()
-		return nil, errors.Wrap(err)
+		return nil, err
 	}
 	w := &changeWatcher{
 		watcher:   watcher,

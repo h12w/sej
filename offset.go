@@ -14,10 +14,12 @@ type Offset struct {
 	value    uint64
 }
 
-// NewOffset creates a new Offset object persisted to dir/name
+// NewOffset creates a new Offset object persisted to dir/ofs/name.ofs
 func NewOffset(dir, name string) (*Offset, error) {
-	file := path.Join(dir, name+".ofs")
-	fileLock, err := openFileLock(file + ".lck")
+	dir = OffsetDirPath(dir)
+	_ = os.MkdirAll(dir, 0755)
+	filePrefix := path.Join(dir, name)
+	fileLock, err := openFileLock(filePrefix + ".lck")
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +27,7 @@ func NewOffset(dir, name string) (*Offset, error) {
 	if err != nil {
 		return nil, err
 	}
-	o := &Offset{dir: d, file: file, fileLock: fileLock}
+	o := &Offset{dir: d, file: filePrefix + ".ofs", fileLock: fileLock}
 	f, err := openOrCreate(o.file)
 	if err != nil {
 		return nil, err
@@ -74,4 +76,8 @@ func (o *Offset) Commit(value uint64) error {
 func (o *Offset) Close() error {
 	o.fileLock.Close()
 	return o.dir.Close()
+}
+
+func OffsetDirPath(dir string) string {
+	return path.Join(dir, "ofs")
 }
