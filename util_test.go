@@ -80,14 +80,14 @@ func verifyReadMessages(t *testing.T, path string, messages ...string) {
 }
 
 func (f *JournalFile) size(t *testing.T) int {
-	info, err := os.Stat(f.fileName)
+	info, err := os.Stat(f.FileName)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return int(info.Size())
 }
 
-func (fs *journalDir) sizes(t *testing.T) []int {
+func (fs *JournalDir) sizes(t *testing.T) []int {
 	sizes := make([]int, len(fs.files))
 	for i := range fs.files {
 		sizes[i] = fs.files[i].size(t)

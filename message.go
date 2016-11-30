@@ -185,8 +185,8 @@ func writeCRC(w io.Writer, data []byte) (int, error) {
 }
 
 // LatestOffset returns the offset after the last message in a journal file
-func (journalFile *JournalFile) LatestOffset() (uint64, error) {
-	file, err := os.Open(journalFile.fileName)
+func (journalFile *JournalFile) LastOffset() (uint64, error) {
+	file, err := os.Open(journalFile.FileName)
 	if err != nil {
 		return 0, err
 	}
@@ -196,7 +196,7 @@ func (journalFile *JournalFile) LatestOffset() (uint64, error) {
 		return 0, err
 	}
 	if fileSize == 0 {
-		return journalFile.startOffset, nil
+		return journalFile.StartOffset, nil
 	}
 	msg, err := readMessageBackward(file)
 	if err != nil {

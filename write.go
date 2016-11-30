@@ -32,13 +32,13 @@ func NewWriter(dir string) (*Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	names, err := openJournalDir(dir)
+	names, err := OpenJournalDir(dir)
 	if err != nil {
 		dirLock.Close()
 		return nil, err
 	}
-	journalFile := names.last()
-	file, err := openOrCreate(journalFile.fileName)
+	journalFile := names.Last()
+	file, err := openOrCreate(journalFile.FileName)
 	if err != nil {
 		dirLock.Close()
 		return nil, err
@@ -49,15 +49,15 @@ func NewWriter(dir string) (*Writer, error) {
 		file.Close()
 		return nil, err
 	}
-	latestOffset, err := journalFile.LatestOffset()
+	latestOffset, err := journalFile.LastOffset()
 	if err != nil {
 		dirLock.Close()
 		file.Close()
 		if err != errMessageCorrupted {
 			return nil, err
 		}
-		bad, fixErr := truncateCorruption(journalFile.fileName)
-		return nil, &CorruptionError{File: journalFile.fileName, Message: bad, Err: err, FixErr: fixErr}
+		bad, fixErr := truncateCorruption(journalFile.FileName)
+		return nil, &CorruptionError{File: journalFile.FileName, Message: bad, Err: err, FixErr: fixErr}
 	}
 	if _, err := file.Seek(0, os.SEEK_END); err != nil {
 		dirLock.Close()

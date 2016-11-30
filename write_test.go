@@ -47,7 +47,7 @@ func TestWriteSegment(t *testing.T) {
 			writeTestMessages(t, w, testcase.messages...)
 			closeTestWriter(t, w)
 
-			journalFiles, err := openJournalDir(path)
+			journalFiles, err := OpenJournalDir(path)
 			if err != nil {
 				t.Fatal(err)
 			}

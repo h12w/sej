@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"time"
+
+	"h12.me/errors"
 )
 
 var (
@@ -34,26 +36,26 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	}
 	journalDir, err := openWatchedJournalDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
 	journalFile, err := journalDir.Find(offset)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
 	if journalDir.IsLast(journalFile) {
-		r.file, err = openWatchedFile(journalFile.fileName)
+		r.file, err = openWatchedFile(journalFile.FileName)
 	} else {
-		r.file, err = openDummyWatchedFile(journalFile.fileName)
+		r.file, err = openDummyWatchedFile(journalFile.FileName)
 	}
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
-	r.offset = journalFile.startOffset
+	r.offset = journalFile.StartOffset
 	r.journalFile = journalFile
 	r.journalDir = journalDir
 	for r.offset < offset {
 		if _, err := r.Read(); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err)
 		}
 	}
 	if r.offset != offset {
@@ -125,9 +127,9 @@ func (r *Reader) reopenFile() error {
 	}
 	var newFile watchedReadSeekCloser
 	if r.journalDir.IsLast(journalFile) {
-		newFile, err = openWatchedFile(journalFile.fileName)
+		newFile, err = openWatchedFile(journalFile.FileName)
 	} else {
-		newFile, err = openDummyWatchedFile(journalFile.fileName)
+		newFile, err = openDummyWatchedFile(journalFile.FileName)
 	}
 	if err != nil {
 		return err

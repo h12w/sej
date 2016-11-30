@@ -6,29 +6,30 @@ import (
 	"sync"
 
 	"gopkg.in/fsnotify.v1"
+	"h12.me/errors"
 )
 
 type watchedJournalDir struct {
-	dir     *journalDir
+	dir     *JournalDir
 	watcher *changeWatcher
 }
 
 func openWatchedJournalDir(dir string) (*watchedJournalDir, error) {
 	dirFile, err := openOrCreateDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
 	if err := dirFile.Close(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
 	watcher, err := newChangeWatcher(dir, fsnotify.Create|fsnotify.Remove)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
-	journalDir, err := openJournalDir(dir)
+	journalDir, err := OpenJournalDir(dir)
 	if err != nil {
 		watcher.Close()
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
 	return &watchedJournalDir{
 		dir:     journalDir,
@@ -58,7 +59,7 @@ func (d *watchedJournalDir) IsLast(f *JournalFile) bool {
 	return d.dir.isLast(f)
 }
 func (d *watchedJournalDir) reload() error {
-	journalDir, err := openJournalDir(d.dir.path)
+	journalDir, err := OpenJournalDir(d.dir.path)
 	if err != nil {
 		return err
 	}
@@ -155,11 +156,11 @@ type changeWatcher struct {
 func newChangeWatcher(name string, op fsnotify.Op) (*changeWatcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
 	if err := watcher.Add(name); err != nil {
 		watcher.Close()
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
 	w := &changeWatcher{
 		watcher:   watcher,

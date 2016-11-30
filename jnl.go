@@ -13,11 +13,11 @@ import (
 type (
 	// JournalFile represents a unopened journal file
 	JournalFile struct {
-		startOffset uint64
-		fileName    string
+		StartOffset uint64
+		FileName    string
 	}
 	journalFiles []JournalFile
-	journalDir   struct {
+	JournalDir   struct {
 		path  string
 		files journalFiles
 	}
@@ -27,7 +27,7 @@ const (
 	journalExt = ".jnl"
 )
 
-func openJournalDir(dir string) (*journalDir, error) {
+func OpenJournalDir(dir string) (*JournalDir, error) {
 	dirFile, err := openOrCreateDir(dir)
 	if err != nil {
 		return nil, err
@@ -54,13 +54,13 @@ func openJournalDir(dir string) (*journalDir, error) {
 			return nil, err
 		}
 		f.Close()
-		return openJournalDir(dir)
+		return OpenJournalDir(dir)
 	}
 	sort.Sort(files)
 	if len(files) == 0 {
 		return nil, errors.New("no journal files found or created")
 	}
-	return &journalDir{
+	return &JournalDir{
 		files: files,
 		path:  dir,
 	}, nil
@@ -68,7 +68,7 @@ func openJournalDir(dir string) (*journalDir, error) {
 
 func (a journalFiles) Len() int           { return len(a) }
 func (a journalFiles) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a journalFiles) Less(i, j int) bool { return a[i].startOffset < a[j].startOffset }
+func (a journalFiles) Less(i, j int) bool { return a[i].StartOffset < a[j].StartOffset }
 
 func openOrCreateDir(dir string) (*os.File, error) {
 	f, err := os.Open(dir)
@@ -84,23 +84,27 @@ func openOrCreateDir(dir string) (*os.File, error) {
 	return f, err
 }
 
-func (d *journalDir) last() *JournalFile {
+func (d *JournalDir) Last() *JournalFile {
 	return &d.files[len(d.files)-1]
 }
 
-func (d *journalDir) isLast(f *JournalFile) bool {
-	return d.files[len(d.files)-1].startOffset == f.startOffset
+func (d *JournalDir) First() *JournalFile {
+	return &d.files[0]
 }
 
-func (d *journalDir) find(offset uint64) (*JournalFile, error) {
+func (d *JournalDir) isLast(f *JournalFile) bool {
+	return d.files[len(d.files)-1].StartOffset == f.StartOffset
+}
+
+func (d *JournalDir) find(offset uint64) (*JournalFile, error) {
 	for i := 0; i < len(d.files)-1; i++ {
-		if d.files[i].startOffset <= offset && offset < d.files[i+1].startOffset {
+		if d.files[i].StartOffset <= offset && offset < d.files[i+1].StartOffset {
 			return &d.files[i], nil
 		}
 	}
-	if len(d.files) == 1 && d.files[0].startOffset <= offset {
+	if len(d.files) == 1 && d.files[0].StartOffset <= offset {
 		return &d.files[0], nil
-	} else if d.files[len(d.files)-1].startOffset <= offset {
+	} else if d.files[len(d.files)-1].StartOffset <= offset {
 		return &d.files[len(d.files)-1], nil
 	}
 	return nil, errors.New("offset is too small")
@@ -128,7 +132,7 @@ func ParseJournalFileName(dir, name string) (*JournalFile, error) {
 		return nil, err
 	}
 	return &JournalFile{
-		startOffset: offset,
-		fileName:    path.Join(dir, name),
+		StartOffset: offset,
+		FileName:    path.Join(dir, name),
 	}, nil
 }

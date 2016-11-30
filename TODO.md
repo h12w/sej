@@ -23,9 +23,10 @@ TODO
 
 ### Command line tool
 
-* range
-* dump
+* dump (done)
+* last-offset (done)
 * tail
+* range
 * count
 * rollback
 * clean
