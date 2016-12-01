@@ -4,9 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"path"
+
+	"path/filepath"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
+	"h12.me/errors"
 	"h12.me/sej"
 	"h12.me/uuid/hexid"
 )
@@ -24,7 +29,7 @@ func (d *DumpCommand) Execute(args []string) error {
 	for {
 		file, err := os.Open(d.JournalFile)
 		if err != nil {
-			return err
+			return errors.Wrap(err)
 		}
 		defer file.Close()
 		if _, err := msg.ReadFrom(file); err != nil {
@@ -46,10 +51,14 @@ type LastOffsetCommand struct {
 func (c *LastOffsetCommand) Execute(args []string) error {
 	jf, err := sej.ParseJournalFileName(".", os.Args[2])
 	if err != nil {
-		return err
+		return errors.Wrap(err)
 	}
 	fmt.Println(jf.LastOffset())
 	return nil
+}
+
+type JournalDirConfig struct {
+	Dir string
 }
 
 type TailCommand struct {
@@ -71,7 +80,7 @@ func (c *TailCommand) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	earlist := dir.First().StartOffset
+	earlist := dir.First().FirstOffset
 	latest, err := dir.Last().LastOffset()
 	if err != nil {
 		return err
@@ -117,19 +126,66 @@ func (format Format) Sprint(value []byte) (string, error) {
 }
 
 type CleanCommand struct {
-	Dir string `
-		long:"dir"
-		description:"directory of the root directory"`
 	Max int `
 		long:"max"
 		default:"2"
 		description:"max number of journal files kept after cleanning"`
+	JournalDirConfig `positional-args:"yes"  required:"yes"`
 }
 
 func (c *CleanCommand) Execute(args []string) error {
-	// find slowest reader
-	// find all journal files and determine which ones to clean by "max"
-	// clean from the earliest file, if sloweast_reader.offset > file.LastOffset()
-	// print warning if a file cannot be cleaned
+	if c.Max < 1 {
+		return errors.New("max must be at least 1")
+	}
+	dir, err := sej.OpenJournalDir(c.Dir)
+	if err != nil {
+		return errors.Wrap(err)
+	}
+	// make sure len(dir.Files) > c.Max
+	if len(dir.Files) <= c.Max {
+		return nil
+	}
+
+	latest, err := dir.Last().LastOffset()
+	if err != nil {
+		return errors.Wrap(err)
+	}
+	slowestReader := ""
+	slowestOffset := latest
+	ofsFiles, err := filepath.Glob(path.Join(sej.OffsetDirPath(c.Dir), "*.ofs"))
+	if err != nil {
+		return errors.Wrap(err)
+	}
+	for _, ofsFile := range ofsFiles {
+		f, err := os.Open(ofsFile)
+		if err != nil {
+			return errors.Wrap(err)
+		}
+		offset, err := sej.ReadOffset(f)
+		if err != nil {
+			f.Close()
+			return errors.Wrap(err)
+		}
+		f.Close()
+		if offset < slowestOffset {
+			slowestReader = ofsFile
+			slowestOffset = offset
+		}
+	}
+
+	for _, journalFile := range dir.Files[:len(dir.Files)-c.Max] {
+		lastOffset, err := journalFile.LastOffset()
+		if err != nil {
+			return errors.Wrap(err)
+		}
+		if slowestOffset <= lastOffset {
+			log.Printf("stop cleaning %s (%d-%d) because of slow reader %s\n", journalFile.FileName, journalFile.FirstOffset, lastOffset, slowestReader)
+			break
+		}
+		if err := os.Remove(journalFile.FileName); err != nil {
+			return errors.Wrap(err)
+		}
+		log.Printf("%s removed", journalFile.FileName)
+	}
 	return nil
 }

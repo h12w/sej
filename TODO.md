@@ -26,11 +26,10 @@ TODO
 * dump (done)
 * last-offset (done)
 * tail (done)
+* clean (done)
 * range
 * count
 * rollback
-* clean
-	- delete files according to cleaning rules
 
 ### Benchmark
 

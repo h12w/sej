@@ -49,7 +49,7 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	r.offset = journalFile.StartOffset
+	r.offset = journalFile.FirstOffset
 	r.journalFile = journalFile
 	r.journalDir = journalDir
 	for r.offset < offset {

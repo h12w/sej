@@ -88,9 +88,9 @@ func (f *JournalFile) size(t *testing.T) int {
 }
 
 func (fs *JournalDir) sizes(t *testing.T) []int {
-	sizes := make([]int, len(fs.files))
-	for i := range fs.files {
-		sizes[i] = fs.files[i].size(t)
+	sizes := make([]int, len(fs.Files))
+	for i := range fs.Files {
+		sizes[i] = fs.Files[i].size(t)
 	}
 	return sizes
 }

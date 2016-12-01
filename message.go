@@ -243,7 +243,7 @@ func (journalFile *JournalFile) LastOffset() (uint64, error) {
 		return 0, err
 	}
 	if fileSize == 0 {
-		return journalFile.StartOffset, nil
+		return journalFile.FirstOffset, nil
 	}
 	msg, err := readMessageBackward(file)
 	if err != nil {

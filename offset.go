@@ -33,7 +33,8 @@ func NewOffset(dir, name string) (*Offset, error) {
 		return nil, err
 	}
 	defer f.Close()
-	if _, err := readUint64(f, &o.value); err != nil && err != io.EOF {
+	o.value, err = ReadOffset(f)
+	if err != nil && err != io.EOF {
 		return nil, err
 	}
 	return o, nil
@@ -80,4 +81,10 @@ func (o *Offset) Close() error {
 
 func OffsetDirPath(dir string) string {
 	return path.Join(dir, "ofs")
+}
+
+// ReadOffset reads the offset stored in an ofs file (r)
+func ReadOffset(r io.ReadSeeker) (offset uint64, err error) {
+	_, err = readUint64(r, &offset)
+	return offset, err
 }
