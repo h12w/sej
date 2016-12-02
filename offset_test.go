@@ -12,8 +12,7 @@ func TestOffset(t *testing.T) {
 	if val := offset.Value(); val != 0 {
 		t.Fatalf("expect offset is 0 but got %d", val)
 	}
-	offset.Inc()
-	if err := offset.Commit(); err != nil {
+	if err := offset.Commit(1); err != nil {
 		t.Fatal(err)
 	}
 	if val := offset.Value(); val != 1 {
