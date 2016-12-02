@@ -9,6 +9,8 @@ import (
 var (
 	// ErrCRC is returned when the CRC of an message value does not match the stored CRC
 	ErrCRC = errors.New("CRC mismatch")
+	// ErrTimeout is returned when no message can be obtained within Reader.Timeout
+	ErrTimeout = errors.New("read timeout")
 )
 
 // CorruptionError is returned when the last message of a segmented journal file is corrupted

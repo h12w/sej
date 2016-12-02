@@ -45,14 +45,18 @@ func (o *Offset) Value() uint64 {
 	return o.value
 }
 
+func (o *Offset) Inc() {
+	o.value++
+}
+
 // Commit saves and syncs the offset to disk
-func (o *Offset) Commit(value uint64) error {
+func (o *Offset) Commit() error {
 	file := o.file + ".tmp"
 	f, err := os.Create(file)
 	if err != nil {
 		return err
 	}
-	if _, err := writeUint64(f, value); err != nil {
+	if _, err := writeUint64(f, o.value); err != nil {
 		f.Close()
 		return err
 	}
@@ -69,7 +73,6 @@ func (o *Offset) Commit(value uint64) error {
 	if err := o.dir.Sync(); err != nil {
 		return err
 	}
-	o.value = value
 	return nil
 }
 

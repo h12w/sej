@@ -62,9 +62,6 @@ type JournalDirConfig struct {
 }
 
 type TailCommand struct {
-	Dir string `
-		long:"dir"
-		description:"directory of the segemented journal"`
 	Count uint64 `
 		long:"count"
 		description:"the number of tailing messages to print"
@@ -73,10 +70,11 @@ type TailCommand struct {
 		long:"format"
 		default:"msgpack"
 		description:"encoding format of the message"`
+	JournalDirConfig `positional-args:"yes"  required:"yes"`
 }
 
 func (c *TailCommand) Execute(args []string) error {
-	dir, err := sej.OpenJournalDir(c.Dir)
+	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
 	if err != nil {
 		return err
 	}
@@ -137,7 +135,7 @@ func (c *CleanCommand) Execute(args []string) error {
 	if c.Max < 1 {
 		return errors.New("max must be at least 1")
 	}
-	dir, err := sej.OpenJournalDir(c.Dir)
+	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
 	if err != nil {
 		return errors.Wrap(err)
 	}

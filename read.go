@@ -20,7 +20,8 @@ type Reader struct {
 	journalFile *JournalFile
 	file        watchedReadSeekCloser
 
-	CheckCRC bool // whether or not to check CRC for each message
+	CheckCRC bool          // whether or not to check CRC for each message
+	Timeout  time.Duration // read timeout when no data arrived, default 0
 }
 type watchedReadSeekCloser interface {
 	readSeekCloser
@@ -91,12 +92,18 @@ func (r *Reader) Read() (message *Message, err error) {
 			}
 
 			// the last one, wait for any changes
+			var timeoutChan <-chan time.Time
+			if r.Timeout != 0 {
+				timeoutChan = time.After(r.Timeout)
+			}
 			select {
 			case <-dirChanged:
 				if err := r.reopenFile(); err != nil {
 					return nil, err
 				}
 			case <-fileChanged:
+			case <-timeoutChan:
+				return nil, ErrTimeout
 			case <-time.After(NotifyTimeout):
 			}
 			continue
