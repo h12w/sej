@@ -87,19 +87,20 @@ func (c *TailCommand) Execute(args []string) error {
 	if offset < earlist {
 		offset = earlist
 	}
-	reader, err := sej.NewReader(c.Dir, offset)
+	scanner, err := sej.NewScanner(c.Dir, offset)
 	if err != nil {
 		return err
 	}
-	for i := 0; i < int(c.Count); i++ {
-		msg, err := reader.Read()
-		if err != nil {
-			return err
-		}
+	cnt := 0
+	for scanner.Scan() {
 		switch c.Format {
 		case "json", "msgpack":
-			line, _ := Format(c.Format).Sprint(msg.Value)
+			line, _ := Format(c.Format).Sprint(scanner.Message().Value)
 			fmt.Println(line)
+		}
+		cnt++
+		if cnt >= int(c.Count) {
+			break
 		}
 	}
 	return nil

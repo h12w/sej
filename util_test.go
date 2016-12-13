@@ -49,22 +49,22 @@ func flushTestWriter(t *testing.T, w *Writer) {
 }
 
 func readMessages(t *testing.T, path string, start uint64, n int) (messages []string) {
-	r, err := NewReader(path, start)
+	r, err := NewScanner(path, start)
 	if err != nil {
 		t.Fatal(err)
 		return nil
 	}
 	defer r.Close()
 	for i := 0; i < n; i++ {
-		msg, err := r.Read()
-		if err != nil {
-			t.Fatal(err)
+		r.Scan()
+		if r.Err() != nil {
+			t.Fatal(r.Err())
 		}
 		offset := start + uint64(i) + 1
 		if r.Offset() != offset {
 			t.Fatalf("offset: expect %d but read %d", offset, r.Offset())
 		}
-		messages = append(messages, string(msg.Value))
+		messages = append(messages, string(r.Message().Value))
 	}
 	return messages
 }

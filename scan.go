@@ -13,12 +13,14 @@ var (
 	NotifyTimeout = time.Hour
 )
 
-// Reader reads segmented journal files
-type Reader struct {
+// Scanner implements reading of messages from segmented journal files
+type Scanner struct {
 	offset      uint64
 	journalDir  *watchedJournalDir
 	journalFile *JournalFile
 	file        watchedReadSeekCloser
+	message     Message
+	err         error
 
 	CheckCRC bool          // whether or not to check CRC for each message
 	Timeout  time.Duration // read timeout when no data arrived, default 0
@@ -28,10 +30,10 @@ type watchedReadSeekCloser interface {
 	Watch() chan bool
 }
 
-// NewReader creates a reader for reading dir/jnl starting from offset
-func NewReader(dir string, offset uint64) (*Reader, error) {
+// NewScanner creates a scanner for reading dir/jnl starting from offset
+func NewScanner(dir string, offset uint64) (*Scanner, error) {
 	dir = JournalDirPath(dir)
-	r := Reader{
+	r := Scanner{
 		CheckCRC: true,
 	}
 	journalDir, err := openWatchedJournalDir(dir)
@@ -53,10 +55,10 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	r.offset = journalFile.FirstOffset
 	r.journalFile = journalFile
 	r.journalDir = journalDir
-	for r.offset < offset {
-		if _, err := r.Read(); err != nil {
-			return nil, err
-		}
+	for r.offset < offset && r.Scan() {
+	}
+	if r.Err() != nil {
+		return nil, r.Err()
 	}
 	if r.offset != offset {
 		return nil, fmt.Errorf("fail to find offset %d", offset)
@@ -64,29 +66,32 @@ func NewReader(dir string, offset uint64) (*Reader, error) {
 	return &r, nil
 }
 
-// Read reads a message and increment the offset
-func (r *Reader) Read() (message *Message, err error) {
-	message = &Message{}
+// Scan scans the next message and increment the offset
+func (r *Scanner) Scan() bool {
+	if r.err != nil {
+		return false
+	}
 	for {
 		fileChanged, dirChanged := r.file.Watch(), r.journalDir.Watch()
-		n, err := message.ReadFrom(r.file)
-		if err != nil {
+		var n int64
+		n, r.err = r.message.ReadFrom(r.file)
+		if r.err != nil {
 			// rollback the reader
 			if _, seekErr := r.file.Seek(-n, io.SeekCurrent); seekErr != nil {
-				return nil, err
+				return false
 			}
 
 			// unexpected io error
-			switch err {
+			switch r.err {
 			case io.EOF, io.ErrUnexpectedEOF:
 			default:
-				return nil, err
+				return false
 			}
 
 			// not the last one, open the next journal file
 			if !r.journalDir.IsLast(r.journalFile) {
-				if err := r.reopenFile(); err != nil {
-					return nil, err
+				if r.err = r.reopenFile(); r.err != nil {
+					return false
 				}
 				continue
 			}
@@ -98,12 +103,13 @@ func (r *Reader) Read() (message *Message, err error) {
 			}
 			select {
 			case <-dirChanged:
-				if err := r.reopenFile(); err != nil {
-					return nil, err
+				if r.err = r.reopenFile(); r.err != nil {
+					return false
 				}
 			case <-fileChanged:
 			case <-timeoutChan:
-				return nil, ErrTimeout
+				r.err = ErrTimeout
+				return false
 			case <-time.After(NotifyTimeout):
 			}
 			continue
@@ -112,21 +118,30 @@ func (r *Reader) Read() (message *Message, err error) {
 	}
 
 	// check offset
-	if message.Offset != r.offset {
-		return nil, fmt.Errorf("offset is out of order, expect %d but got %d", r.offset, message.Offset)
+	if r.message.Offset != r.offset {
+		r.err = fmt.Errorf("offset is out of order, expect %d but got %d", r.offset, r.message.Offset)
+		return false
 	}
 	r.offset++
 
 	if r.CheckCRC {
-		if err := message.checkCRC(); err != nil {
-			return message, err
+		if r.err = r.message.checkCRC(); r.err != nil {
+			return false
 		}
 	}
 
-	return message, nil
+	return true
 }
 
-func (r *Reader) reopenFile() error {
+func (r *Scanner) Message() *Message {
+	return &r.message
+}
+
+func (r *Scanner) Err() error {
+	return r.err
+}
+
+func (r *Scanner) reopenFile() error {
 	journalFile, err := r.journalDir.Find(r.offset)
 	if err != nil {
 		return err
@@ -149,12 +164,12 @@ func (r *Reader) reopenFile() error {
 }
 
 // Offset returns the current offset of the reader
-func (r *Reader) Offset() uint64 {
+func (r *Scanner) Offset() uint64 {
 	return r.offset
 }
 
 // Close closes the reader
-func (r *Reader) Close() error {
+func (r *Scanner) Close() error {
 	err1 := r.journalDir.Close()
 	err2 := r.file.Close()
 	if err1 != nil {

@@ -10,7 +10,7 @@ func TestReadThroughSegmentBoundary(t *testing.T) {
 	writeTestMessages(t, w, messages...)
 	closeTestWriter(t, w)
 
-	r, err := NewReader(path, 0)
+	r, err := NewScanner(path, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,16 +30,16 @@ func TestReadFromOffset(t *testing.T) {
 			for i, expectedMsg := range messages {
 				func() {
 					// create a new reader starting from i
-					r, err := NewReader(path, uint64(i))
+					r, err := NewScanner(path, uint64(i))
 					if err != nil {
 						t.Fatal(err)
 					}
 					defer r.Close()
-					msg, err := r.Read()
-					if err != nil {
-						t.Fatal(err)
+					r.Scan()
+					if r.Err() != nil {
+						t.Fatal(r.Err())
 					}
-					actualMsg := string(msg.Value)
+					actualMsg := string(r.Message().Value)
 					if actualMsg != expectedMsg {
 						t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
 					}
@@ -58,7 +58,7 @@ func TestReadBeforeWrite(t *testing.T) {
 	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 1000} {
 		func() {
 			path := newTestPath(t)
-			r, err := NewReader(path, 0)
+			r, err := NewScanner(path, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -73,11 +73,11 @@ func TestReadBeforeWrite(t *testing.T) {
 				done <- true
 			}()
 			for i := range messages {
-				msg, err := r.Read()
-				if err != nil {
-					t.Fatal(err)
+				r.Scan()
+				if r.Err() != nil {
+					t.Fatal(r.Err())
 				}
-				actualMsg, expectedMsg := string(msg.Value), messages[i]
+				actualMsg, expectedMsg := string(r.Message().Value), messages[i]
 				if actualMsg != expectedMsg {
 					t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
 				}
