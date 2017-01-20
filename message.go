@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	metaSize = 24
+	metaSize = 25
 )
 
 var (
@@ -20,6 +20,7 @@ var (
 type Message struct {
 	Offset    uint64
 	Timestamp time.Time
+	Type      byte
 	Value     []byte
 }
 
@@ -45,6 +46,12 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 		ts = time.Now()
 	}
 	n, err = writeInt64(w, ts.UnixNano())
+	cnt += int64(n)
+	if err != nil {
+		return cnt, err
+	}
+
+	n, err = writeByte(w, m.Type)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -91,6 +98,12 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	}
 	m.Timestamp = time.Unix(0, unixNano)
 
+	nn, err = readByte(r, &m.Type)
+	cnt += int64(nn)
+	if err != nil {
+		return cnt, err
+	}
+
 	nn, err = readInt32(r, &msgLen)
 	cnt += int64(nn)
 	if err != nil {
@@ -135,6 +148,20 @@ func readMessageBackward(r io.ReadSeeker) (*Message, error) {
 	return &msg, err
 }
 
+func writeByte(w io.Writer, i byte) (int, error) {
+	return w.Write([]byte{i})
+}
+
+func readByte(r io.ReadSeeker, i *byte) (int, error) {
+	var b [1]byte
+	n, err := io.ReadFull(r, b[:])
+	if err != nil {
+		return n, err
+	}
+	*i = b[0]
+	return n, nil
+}
+
 func writeInt64(w io.Writer, i int64) (int, error) {
 	return w.Write([]byte{byte(i >> 56), byte(i >> 48), byte(i >> 40), byte(i >> 32), byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
 }
@@ -144,9 +171,6 @@ func readInt64(r io.ReadSeeker, i *int64) (int, error) {
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
 		return n, err
-	}
-	if n != 8 {
-		return n, fmt.Errorf("int64 is truncated (%d)", n)
 	}
 	*i = int64(b[0])<<56 | int64(b[1])<<48 | int64(b[2])<<40 | int64(b[3])<<32 |
 		int64(b[4])<<24 | int64(b[5])<<16 | int64(b[6])<<8 | int64(b[7])
@@ -163,9 +187,6 @@ func readUint64(r io.ReadSeeker, i *uint64) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	if n != 8 {
-		return n, fmt.Errorf("uint64 is truncated (%d)", n)
-	}
 	*i = uint64(b[0])<<56 | uint64(b[1])<<48 | uint64(b[2])<<40 | uint64(b[3])<<32 |
 		uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7])
 	return n, nil
@@ -181,9 +202,6 @@ func readInt32(r io.ReadSeeker, i *int32) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	if n != 4 {
-		return n, fmt.Errorf("int32 is truncated (%d)", n)
-	}
 	*i = int32(b[0])<<24 | int32(b[1])<<16 | int32(b[2])<<8 | int32(b[3])
 	return n, nil
 }
@@ -197,9 +215,6 @@ func readUint32(r io.ReadSeeker, i *uint32) (int, error) {
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
 		return n, err
-	}
-	if n != 4 {
-		return n, fmt.Errorf("uint32 is truncated (%d)", n)
 	}
 	*i = uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
 	return n, nil
