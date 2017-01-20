@@ -3,15 +3,13 @@ package sej
 import (
 	"errors"
 	"fmt"
-	"hash/crc32"
-	"time"
-	//"github.com/klauspost/crc32"
 	"io"
 	"os"
+	"time"
 )
 
 const (
-	metaSize = 28
+	metaSize = 24
 )
 
 var (
@@ -21,7 +19,6 @@ var (
 // Message in a segmented journal file
 type Message struct {
 	Offset    uint64
-	CRC       uint32
 	Timestamp time.Time
 	Value     []byte
 }
@@ -48,12 +45,6 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 		ts = time.Now()
 	}
 	n, err = writeInt64(w, ts.UnixNano())
-	cnt += int64(n)
-	if err != nil {
-		return cnt, err
-	}
-
-	n, err = writeCRC(w, m.Value)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -100,12 +91,6 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	}
 	m.Timestamp = time.Unix(0, unixNano)
 
-	nn, err = readUint32(r, &m.CRC)
-	cnt += int64(nn)
-	if err != nil {
-		return cnt, err
-	}
-
 	nn, err = readInt32(r, &msgLen)
 	cnt += int64(nn)
 	if err != nil {
@@ -132,13 +117,6 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	}
 
 	return cnt, nil
-}
-
-func (m *Message) checkCRC() error {
-	if m.CRC != crc32.ChecksumIEEE(m.Value) {
-		return ErrCRC
-	}
-	return nil
 }
 
 func readMessageBackward(r io.ReadSeeker) (*Message, error) {
@@ -225,10 +203,6 @@ func readUint32(r io.ReadSeeker, i *uint32) (int, error) {
 	}
 	*i = uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
 	return n, nil
-}
-
-func writeCRC(w io.Writer, data []byte) (int, error) {
-	return writeUint32(w, crc32.ChecksumIEEE(data))
 }
 
 // LatestOffset returns the offset after the last message in a journal file

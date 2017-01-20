@@ -22,8 +22,7 @@ type Scanner struct {
 	message     Message
 	err         error
 
-	CheckCRC bool          // whether or not to check CRC for each message
-	Timeout  time.Duration // read timeout when no data arrived, default 0
+	Timeout time.Duration // read timeout when no data arrived, default 0
 }
 type watchedReadSeekCloser interface {
 	readSeekCloser
@@ -33,9 +32,7 @@ type watchedReadSeekCloser interface {
 // NewScanner creates a scanner for reading dir/jnl starting from offset
 func NewScanner(dir string, offset uint64) (*Scanner, error) {
 	dir = JournalDirPath(dir)
-	r := Scanner{
-		CheckCRC: true,
-	}
+	r := Scanner{}
 	journalDir, err := openWatchedJournalDir(dir)
 	if err != nil {
 		return nil, err
@@ -123,12 +120,6 @@ func (r *Scanner) Scan() bool {
 		return false
 	}
 	r.offset++
-
-	if r.CheckCRC {
-		if r.err = r.message.checkCRC(); r.err != nil {
-			return false
-		}
-	}
 
 	return true
 }
