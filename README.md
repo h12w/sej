@@ -23,12 +23,16 @@ Journal File format
 -------------------
 
 ```
-segment_file = { offset timestamp crc size message size } .
-offset       = uint64    .
-timestamp    = int64     .
-type         = uint8     .
-size         = int32     .
-message      = { uint8 } .
+segment_file = { message }                          .
+message      = offset timestamp type key value size .
+offset       = uint64                               .
+timestamp    = int64                                .
+type         = uint8                                .
+key          = key_size { uint8 }                   .
+key_size     = int8                                 .
+value        = value_size { uint8 }                 .
+value_size   = int32                                .
+size         = int32                                .
 ```
 
 All integers are written in the big endian format.
@@ -38,5 +42,6 @@ All integers are written in the big endian format.
  offset    | the position of the message in the queue
  timestamp | the timestamp represented in nanoseconds since Unix Epoch
  type      | an int8 value that could be used to indicate the type of the message
- size      | the size of the message, allowing reading both forward and backward
- message   | the encoded message
+ key       | the encoded key
+ value     | the encoded value
+ size      | the size of the whole message including itself, allowing reading backward

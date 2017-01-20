@@ -8,10 +8,6 @@ import (
 	"time"
 )
 
-const (
-	metaSize = 25
-)
-
 var (
 	errMessageCorrupted = errors.New("last message of the journal file is courrupted")
 )
@@ -21,6 +17,7 @@ type Message struct {
 	Offset    uint64
 	Timestamp time.Time
 	Type      byte
+	Key       []byte
 	Value     []byte
 }
 
@@ -33,7 +30,6 @@ type readSeekCloser interface {
 // WriteTo writes the message to w
 func (m *Message) WriteTo(w io.Writer) (int64, error) {
 	cnt := int64(0) // total bytes written
-	msgLen := int32(len(m.Value))
 
 	n, err := writeUint64(w, m.Offset)
 	cnt += int64(n)
@@ -57,7 +53,19 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 		return cnt, err
 	}
 
-	n, err = writeInt32(w, msgLen)
+	n, err = writeInt8(w, int8(len(m.Key)))
+	cnt += int64(n)
+	if err != nil {
+		return cnt, err
+	}
+
+	n, err = w.Write(m.Key)
+	cnt += int64(n)
+	if err != nil {
+		return cnt, err
+	}
+
+	n, err = writeInt32(w, int32(len(m.Value)))
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -69,7 +77,7 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 		return cnt, err
 	}
 
-	n, err = writeInt32(w, msgLen)
+	n, err = writeInt32(w, int32(cnt)+4)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -82,7 +90,6 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 // When an error occurs, it will rollback the seeker and then returns the original error.
 func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	cnt := int64(0) // total bytes read
-	var msgLen, msgLen2 int32
 
 	nn, err := readUint64(r, &m.Offset)
 	cnt += int64(nn)
@@ -104,28 +111,47 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 		return cnt, err
 	}
 
-	nn, err = readInt32(r, &msgLen)
+	var keyLen int8
+	nn, err = readInt8(r, &keyLen)
 	cnt += int64(nn)
 	if err != nil {
 		return cnt, err
 	}
 
-	m.Value = make([]byte, int(msgLen))
+	m.Key = make([]byte, int(keyLen))
+	nn, err = io.ReadFull(r, m.Key)
+	cnt += int64(nn)
+	if err != nil {
+		return cnt, err
+	}
+	if nn != int(keyLen) {
+		return cnt, fmt.Errorf("message is truncated at %d", m.Offset)
+	}
+
+	var valueLen int32
+	nn, err = readInt32(r, &valueLen)
+	cnt += int64(nn)
+	if err != nil {
+		return cnt, err
+	}
+
+	m.Value = make([]byte, int(valueLen))
 	nn, err = io.ReadFull(r, m.Value)
 	cnt += int64(nn)
 	if err != nil {
 		return cnt, err
 	}
-	if nn != int(msgLen) {
+	if nn != int(valueLen) {
 		return cnt, fmt.Errorf("message is truncated at %d", m.Offset)
 	}
 
-	nn, err = readInt32(r, &msgLen2)
+	var size int32
+	nn, err = readInt32(r, &size)
 	cnt += int64(nn)
 	if err != nil {
 		return cnt, err
 	}
-	if msgLen != msgLen2 {
+	if int64(size) != cnt {
 		return cnt, fmt.Errorf("data corruption detected by size2 at %d", m.Offset)
 	}
 
@@ -133,19 +159,33 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 }
 
 func readMessageBackward(r io.ReadSeeker) (*Message, error) {
-	var msgLen int32
+	var size int32
 	if _, err := r.Seek(-4, os.SEEK_CUR); err != nil {
 		return nil, err
 	}
-	if _, err := readInt32(r, &msgLen); err != nil {
+	if _, err := readInt32(r, &size); err != nil {
 		return nil, err
 	}
-	if _, err := r.Seek(-metaSize-int64(msgLen), os.SEEK_CUR); err != nil {
+	if _, err := r.Seek(-int64(size), os.SEEK_CUR); err != nil {
 		return nil, err
 	}
 	var msg Message
 	_, err := msg.ReadFrom(r)
 	return &msg, err
+}
+
+func writeInt8(w io.Writer, i int8) (int, error) {
+	return w.Write([]byte{byte(i)})
+}
+
+func readInt8(r io.ReadSeeker, i *int8) (int, error) {
+	var b [1]byte
+	n, err := io.ReadFull(r, b[:])
+	if err != nil {
+		return n, err
+	}
+	*i = int8(b[0])
+	return n, nil
 }
 
 func writeByte(w io.Writer, i byte) (int, error) {

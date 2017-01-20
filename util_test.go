@@ -15,7 +15,7 @@ func init() {
 func writeTestMessages(t testing.TB, w *Writer, messages ...string) {
 	start := w.Offset()
 	for i, msg := range messages {
-		if err := w.Append([]byte(msg)); err != nil {
+		if err := w.Append(Message{Value: []byte(msg)}); err != nil {
 			t.Fatal(err)
 		}
 		offset := start + uint64(i) + 1

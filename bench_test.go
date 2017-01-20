@@ -12,7 +12,7 @@ func BenchmarkWrite(b *testing.B) {
 	msg := []byte(strings.Repeat("x", 128))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := w.Append(msg); err != nil {
+		if err := w.Append(Message{Value: msg}); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -22,7 +22,7 @@ func BenchmarkWriterStartup(b *testing.B) {
 	path := newTestPath(b)
 	w := newTestWriter(b, path, 1024*1024*1024)
 	for i := 0; i < 48*1024*1024; i++ {
-		w.Append([]byte("a"))
+		w.Append(Message{Value: []byte("a")})
 	}
 	w.Close()
 	b.ResetTimer()

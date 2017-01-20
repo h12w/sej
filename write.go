@@ -77,16 +77,19 @@ func NewWriter(dir string) (*Writer, error) {
 }
 
 // Append appends a message to the journal
-func (w *Writer) Append(message []byte) error {
+func (w *Writer) Append(msg Message) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.err != nil { // skip if an error already happens
 		return w.err
 	}
-	if len(message) > math.MaxInt32 {
-		return errors.New("message is too long")
+	if len(msg.Key) > math.MaxInt8 {
+		return errors.New("key is too long")
 	}
-	msg := Message{Value: message, Offset: w.offset}
+	if len(msg.Value) > math.MaxInt32 {
+		return errors.New("value is too long")
+	}
+	msg.Offset = w.offset
 	numWritten, err := msg.WriteTo(w.w)
 	w.fileLen += int(numWritten)
 	if err != nil {
