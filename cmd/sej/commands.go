@@ -10,6 +10,7 @@ import (
 
 	"path/filepath"
 
+	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"h12.me/errors"
 	"h12.me/sej"
@@ -62,7 +63,7 @@ type JournalDirConfig struct {
 }
 
 type TailCommand struct {
-	Count uint64 `
+	Count int `
 		long:"count"
 		description:"the number of tailing messages to print"
 		default:"10"`
@@ -83,19 +84,19 @@ func (c *TailCommand) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	offset := latest - c.Count
-	if offset < earlist {
-		offset = earlist
+	offset := int(latest) - c.Count
+	if offset < int(earlist) {
+		offset = int(earlist)
 	}
-	scanner, err := sej.NewScanner(c.Dir, offset)
+	scanner, err := sej.NewScanner(c.Dir, uint64(offset))
 	if err != nil {
 		return err
 	}
 	cnt := 0
 	for scanner.Scan() {
 		switch c.Format {
-		case "json", "msgpack":
-			line, _ := Format(c.Format).Sprint(scanner.Message().Value)
+		case "json", "msgpack", "bson":
+			line, _ := Format(c.Format).Sprint(scanner.Message())
 			fmt.Println(line)
 		}
 		cnt++
@@ -108,20 +109,33 @@ func (c *TailCommand) Execute(args []string) error {
 
 type Format string
 
-func (format Format) Sprint(value []byte) (string, error) {
+func (format Format) Sprint(msg *sej.Message) (string, error) {
+	value := msg.Value
+	m := make(map[string]interface{})
 	switch format {
 	case "msgpack":
-		m := make(map[string]interface{})
 		if err := msgpack.Unmarshal(value, &m); err != nil {
-			break
+			return "", err
 		}
-		buf, err := json.Marshal(hexid.Restore(m))
-		if err != nil {
-			return "", fmt.Errorf("fail to marshal %#v: %s", m, err.Error())
+	case "bson":
+		if err := bson.Unmarshal(value, &m); err != nil {
+			return "", err
 		}
-		return string(buf), nil
+	default:
+		return string(value), nil
 	}
-	return string(value), nil
+	hexid.Restore(m)
+	m = map[string]interface{}{
+		"key":       string(msg.Key),
+		"timestamp": msg.Timestamp,
+		"type":      msg.Type,
+		"value":     m,
+	}
+	buf, err := json.Marshal(m)
+	if err != nil {
+		return "", fmt.Errorf("fail to marshal %#v: %s", m, err.Error())
+	}
+	return string(buf), nil
 }
 
 type CleanCommand struct {
