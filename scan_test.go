@@ -1,6 +1,9 @@
 package sej
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestReadThroughSegmentBoundary(t *testing.T) {
 	messages := []string{"a", "b", "c"}
@@ -73,7 +76,9 @@ func TestReadBeforeWrite(t *testing.T) {
 				done <- true
 			}()
 			for i := range messages {
-				r.Scan()
+				if !r.Scan() {
+					t.Fatal("Scan should return true")
+				}
 				if r.Err() != nil {
 					t.Fatal(r.Err())
 				}
@@ -83,5 +88,31 @@ func TestReadBeforeWrite(t *testing.T) {
 				}
 			}
 		}()
+	}
+}
+
+func TestReadMonitoredFile(t *testing.T) {
+	path := newTestPath(t)
+	w := newTestWriter(t, path, 1000)
+
+	r, err := NewScanner(path, 0)
+	r.Timeout = time.Second
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	writeTestMessages(t, w, "a")
+	flushTestWriter(t, w)
+
+	if !r.Scan() {
+		t.Fatal("Scan should return true")
+	}
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	actualMsg, expectedMsg := string(r.Message().Value), "a"
+	if actualMsg != expectedMsg {
+		t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
 	}
 }
