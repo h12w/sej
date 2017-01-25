@@ -65,7 +65,7 @@ func NewScanner(dir string, offset uint64) (*Scanner, error) {
 
 // Scan scans the next message and increment the offset
 func (r *Scanner) Scan() bool {
-	if r.err != nil {
+	if r.err != nil && r.err != ErrTimeout {
 		return false
 	}
 	for {

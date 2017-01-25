@@ -91,27 +91,35 @@ func TestReadBeforeWrite(t *testing.T) {
 	}
 }
 
-func TestReadMonitoredFile(t *testing.T) {
+func TestReadTimeoutAndAgain(t *testing.T) {
 	path := newTestPath(t)
 	w := newTestWriter(t, path, 1000)
 
-	r, err := NewScanner(path, 0)
-	r.Timeout = time.Second
+	s, err := NewScanner(path, 0)
+	s.Timeout = time.Nanosecond
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer s.Close()
+
+	if s.Scan() == true {
+		t.Fatal("Scan should return false")
+	}
+	if s.Err() != ErrTimeout {
+		t.Fatal("expect timeout error")
+	}
 
 	writeTestMessages(t, w, "a")
 	flushTestWriter(t, w)
 
-	if !r.Scan() {
+	if s.Scan() == false {
 		t.Fatal("Scan should return true")
 	}
-	if r.Err() != nil {
-		t.Fatal(r.Err())
+	if s.Err() != nil {
+		t.Fatal(s.Err())
 	}
-	actualMsg, expectedMsg := string(r.Message().Value), "a"
+
+	actualMsg, expectedMsg := string(s.Message().Value), "a"
 	if actualMsg != expectedMsg {
 		t.Fatalf("expect msg %s, got %s", expectedMsg, actualMsg)
 	}
