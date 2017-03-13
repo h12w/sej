@@ -117,6 +117,9 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	if err != nil {
 		return cnt, err
 	}
+	if keyLen < 0 {
+		return cnt, errMessageCorrupted
+	}
 
 	m.Key = make([]byte, int(keyLen))
 	nn, err = io.ReadFull(r, m.Key)
@@ -133,6 +136,9 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 	cnt += int64(nn)
 	if err != nil {
 		return cnt, err
+	}
+	if valueLen < 0 {
+		return cnt, errMessageCorrupted
 	}
 
 	m.Value = make([]byte, int(valueLen))
