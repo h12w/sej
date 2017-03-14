@@ -177,7 +177,7 @@ func truncateCorruption(file string) (bad []byte, err error) {
 		n, err := msg.ReadFrom(f)
 		if err != nil {
 			switch err {
-			case io.EOF, io.ErrUnexpectedEOF:
+			case io.EOF, io.ErrUnexpectedEOF, errMessageCorrupted:
 				offset, err := f.Seek(-n, io.SeekCurrent)
 				if err != nil {
 					return nil, err

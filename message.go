@@ -158,7 +158,7 @@ func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
 		return cnt, err
 	}
 	if int64(size) != cnt {
-		return cnt, fmt.Errorf("data corruption detected by size(%d) != cnt(%d) at %d", size, cnt, m.Offset)
+		return cnt, errMessageCorrupted
 	}
 
 	return cnt, nil
