@@ -47,6 +47,9 @@ func (o *Offset) Value() uint64 {
 
 // Commit saves and syncs the offset to disk
 func (o *Offset) Commit(offset uint64) error {
+	if offset == o.value {
+		return nil
+	}
 	file := o.file + ".tmp"
 	f, err := os.Create(file)
 	if err != nil {
