@@ -23,16 +23,16 @@ func TestWriteLock(t *testing.T) {
 func TestOffsetLock(t *testing.T) {
 	dir := newTestPath(t)
 	name := "reader2"
-	o1, err := NewOffset(dir, name)
+	o1, err := NewOffset(dir, name, FirstOffset)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = NewOffset(dir, name)
+	_, err = NewOffset(dir, name, FirstOffset)
 	if err != ErrLocked {
 		t.Fatal("expect lock error but got nil")
 	}
 	o1.Close()
-	o3, err := NewOffset(dir, name)
+	o3, err := NewOffset(dir, name, FirstOffset)
 	if err != nil {
 		t.Fatal(err)
 	}

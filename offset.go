@@ -14,9 +14,16 @@ type Offset struct {
 	value    uint64
 }
 
+type DefaultOffset int
+
+const (
+	FirstOffset DefaultOffset = iota
+	LastOffset
+)
+
 // NewOffset creates a new Offset object persisted to dir/ofs/name.ofs
-func NewOffset(dir, name string) (*Offset, error) {
-	dir = OffsetDirPath(dir)
+func NewOffset(dir, name string, defaultOffset DefaultOffset) (*Offset, error) {
+	jnlDir, dir := JournalDirPath(dir), OffsetDirPath(dir)
 	_ = os.MkdirAll(dir, 0755)
 	filePrefix := path.Join(dir, name)
 	fileLock, err := openFileLock(filePrefix + ".lck")
@@ -34,7 +41,20 @@ func NewOffset(dir, name string) (*Offset, error) {
 	}
 	defer f.Close()
 	o.value, err = ReadOffset(f)
-	if err != nil && err != io.EOF {
+	if err == io.EOF {
+		jd, err := OpenJournalDir(jnlDir)
+		if err != nil {
+			return nil, err
+		}
+		if defaultOffset == LastOffset {
+			o.value, err = jd.Last().LastOffset()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			o.value = jd.First().FirstOffset
+		}
+	} else if err != nil {
 		return nil, err
 	}
 	return o, nil
