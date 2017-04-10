@@ -286,3 +286,26 @@ func (journalFile *JournalFile) LastOffset() (uint64, error) {
 	}
 	return msg.Offset + 1, nil
 }
+
+func (journalFile *JournalFile) lastReadableOffset() (uint64, error) {
+	offset, err := journalFile.LastOffset()
+	if err == nil {
+		return offset, nil
+	}
+	oriErr := err
+
+	f, err := os.Open(journalFile.FileName)
+	if err != nil {
+		return 0, oriErr
+	}
+	defer f.Close()
+	var msg Message
+	for {
+		_, err := msg.ReadFrom(f)
+		if err != nil {
+			break
+		}
+		offset = msg.Offset
+	}
+	return offset, nil
+}
