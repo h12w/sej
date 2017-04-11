@@ -54,12 +54,9 @@ func NewScanner(dir string, offset uint64) (*Scanner, error) {
 	r.journalDir = journalDir
 	for r.offset < offset && r.Scan() {
 	}
-	if r.Err() != nil {
-		return nil, r.Err()
-	}
-	if r.offset != offset {
-		return nil, fmt.Errorf("fail to find offset %d", offset)
-	}
+	// ignore r.Err(), which will be detected by the caller later anyway
+	// ignore the difference between r.offset and offset, in case the journal has been truncated
+	// TODO: add a testcase
 	return &r, nil
 }
 
