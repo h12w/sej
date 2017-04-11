@@ -287,7 +287,7 @@ func (journalFile *JournalFile) LastOffset() (uint64, error) {
 	return msg.Offset + 1, nil
 }
 
-func (journalFile *JournalFile) lastReadableOffset() (uint64, error) {
+func (journalFile *JournalFile) LastReadableOffset() (uint64, error) {
 	offset, err := journalFile.LastOffset()
 	if err == nil {
 		return offset, nil

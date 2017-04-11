@@ -19,6 +19,10 @@ type Command struct {
 	Clean CleanCommand `
                 command:"clean"
                 description:"clean journal files according to cleaning rules"`
+
+	Timestamp TimestampCommand `
+                command:"timestamp"
+                description:"show timestamp of an offset ina journal"`
 }
 
 func main() {

@@ -47,7 +47,7 @@ func NewOffset(dir, name string, defaultOffset DefaultOffset) (*Offset, error) {
 			return nil, err
 		}
 		if defaultOffset == LastOffset {
-			o.value, err = jd.Last().lastReadableOffset()
+			o.value, err = jd.Last().LastReadableOffset()
 			if err != nil {
 				return nil, err
 			}

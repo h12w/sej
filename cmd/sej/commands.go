@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path"
-
 	"path/filepath"
 
 	"gopkg.in/mgo.v2/bson"
@@ -16,6 +15,37 @@ import (
 	"h12.me/sej"
 	"h12.me/uuid/hexid"
 )
+
+type TimestampCommand struct {
+	JournalDirConfig `positional-args:"yes"  required:"yes"`
+	Offset           string `
+		long:"offset"
+		description:"the offset"`
+}
+
+func (d *TimestampCommand) Execute(args []string) error {
+	ofsFilename := path.Join(sej.OffsetDirPath(d.Dir), d.Offset) + ".ofs"
+	ofsFile, err := os.Open(ofsFilename)
+	if err != nil {
+		return err
+	}
+	defer ofsFile.Close()
+	offset, err := sej.ReadOffset(ofsFile)
+	if err != nil {
+		return err
+	}
+
+	s, err := sej.NewScanner(d.Dir, offset)
+	if err != nil {
+		return err
+	}
+	if s.Offset() != offset {
+		return fmt.Errorf("fail to scan to offset %d in %s", offset, d.Dir)
+	}
+	fmt.Println("offset:", s.Offset())
+	fmt.Println("timestamp:", s.Message().Timestamp)
+	return nil
+}
 
 type DumpCommand struct {
 	JournalFileConfig `positional-args:"yes"  required:"yes"`
@@ -46,15 +76,22 @@ func (d *DumpCommand) Execute(args []string) error {
 }
 
 type LastOffsetCommand struct {
-	JournalFileConfig `positional-args:"yes"  required:"yes"`
+	JournalDirConfig `positional-args:"yes"  required:"yes"`
+	Offset           string `
+		long:"offset"
+		description:"the offset"`
 }
 
 func (c *LastOffsetCommand) Execute(args []string) error {
-	jf, err := sej.ParseJournalFileName(".", os.Args[2])
+	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
 	if err != nil {
-		return errors.Wrap(err)
+		return err
 	}
-	fmt.Println(jf.LastOffset())
+	offset, err := dir.Last().LastReadableOffset()
+	if err != nil {
+		return err
+	}
+	fmt.Println(offset)
 	return nil
 }
 
