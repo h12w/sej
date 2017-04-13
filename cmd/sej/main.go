@@ -8,6 +8,10 @@ type Command struct {
                 command:"dump"
                 description:"dump all messages from a journal file"`
 
+	Count CountCommand `
+                command:"count"
+                description:"count messages in range"`
+
 	LastOffset LastOffsetCommand `
                 command:"last-offset"
                 description:"print the last offset of a journal file"`
