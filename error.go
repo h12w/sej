@@ -16,6 +16,7 @@ var (
 // CorruptionError is returned when the last message of a segmented journal file is corrupted
 type CorruptionError struct {
 	File    string
+	Offset  uint64
 	Message []byte
 	Err     error
 	FixErr  error
@@ -23,7 +24,7 @@ type CorruptionError struct {
 
 func (e *CorruptionError) Error() string {
 	if e.FixErr != nil {
-		return fmt.Sprintf("file %s is corrupted but failed to fix it: %s", e.File, e.FixErr.Error())
+		return fmt.Sprintf("file %s is corrupted at (%d) but failed to fix it: %s", e.File, e.Offset, e.FixErr.Error())
 	}
-	return fmt.Sprintf("file %s is corrupted but has been fixed, base64 of the bad message is %s", e.File, base64.StdEncoding.EncodeToString(e.Message))
+	return fmt.Sprintf("file %s is corrupted at %d but has been fixed, base64 of the bad message is %s", e.File, e.Offset, base64.StdEncoding.EncodeToString(e.Message))
 }
