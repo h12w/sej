@@ -1,7 +1,6 @@
 package sej
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"time"
@@ -27,6 +26,7 @@ type Scanner struct {
 type watchedReadSeekCloser interface {
 	readSeekCloser
 	Watch() chan bool
+	FileName() string
 }
 
 // NewScanner creates a scanner for reading dir/jnl starting from offset
@@ -113,12 +113,16 @@ func (r *Scanner) Scan() bool {
 
 	// check offset
 	if r.message.Offset != r.offset {
-		r.err = fmt.Errorf("offset is out of order, expect %d but got %d", r.offset, r.message.Offset)
-		return false
+		r.err = &OffsetError{
+			File:           r.file.FileName(),
+			Offset:         r.message.Offset,
+			Timestamp:      r.message.Timestamp,
+			ExpectedOffset: r.offset,
+		}
 	}
-	r.offset++
+	r.offset = r.message.Offset + 1
 
-	return true
+	return r.err == nil
 }
 
 func (r *Scanner) Message() *Message {
@@ -126,7 +130,11 @@ func (r *Scanner) Message() *Message {
 }
 
 func (r *Scanner) Err() error {
-	return r.err
+	err := r.err
+	if _, ok := err.(*OffsetError); ok {
+		r.err = nil // recoverable error, return it only once
+	}
+	return err
 }
 
 func (r *Scanner) reopenFile() error {
@@ -151,7 +159,7 @@ func (r *Scanner) reopenFile() error {
 	return nil
 }
 
-// Offset returns the current offset of the reader
+// Offset returns the current offset of the reader, i.e. last_message.offset + 1
 func (r *Scanner) Offset() uint64 {
 	return r.offset
 }
@@ -168,6 +176,7 @@ func (r *Scanner) Close() error {
 
 type dummyWatchedFile struct {
 	*os.File
+	fileName string
 }
 
 func openDummyWatchedFile(file string) (*dummyWatchedFile, error) {
@@ -175,7 +184,9 @@ func openDummyWatchedFile(file string) (*dummyWatchedFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &dummyWatchedFile{File: f}, nil
+	return &dummyWatchedFile{File: f, fileName: file}, nil
 }
 
 func (f *dummyWatchedFile) Watch() chan bool { return nil }
+
+func (f *dummyWatchedFile) FileName() string { return f.fileName }

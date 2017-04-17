@@ -71,8 +71,9 @@ func (d *watchedJournalDir) Close() error {
 }
 
 type watchedFile struct {
-	file    *os.File
-	watcher *changeWatcher
+	file     *os.File
+	fileName string
+	watcher  *changeWatcher
 }
 
 func openWatchedFile(name string) (*watchedFile, error) {
@@ -90,6 +91,8 @@ func openWatchedFile(name string) (*watchedFile, error) {
 		watcher: watcher,
 	}, nil
 }
+
+func (f *watchedFile) FileName() string { return f.fileName }
 
 func (f *watchedFile) Watch() chan bool {
 	return f.watcher.Watch()

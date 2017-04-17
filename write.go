@@ -57,13 +57,14 @@ func NewWriter(dir string) (*Writer, error) {
 		if err != errMessageCorrupted {
 			return nil, err
 		}
-		bad, offset, fixErr := truncateCorruption(journalFile.FileName)
+		bad, lastMsg, fixErr := truncateCorruption(journalFile.FileName)
 		return nil, &CorruptionError{
-			File:    journalFile.FileName,
-			Offset:  offset,
-			Message: bad,
-			Err:     err,
-			FixErr:  fixErr,
+			File:      journalFile.FileName,
+			Offset:    lastMsg.Offset + 1,
+			Timestamp: lastMsg.Timestamp,
+			Message:   bad,
+			Err:       err,
+			FixErr:    fixErr,
 		}
 	}
 	if _, err := file.Seek(0, os.SEEK_END); err != nil {
@@ -172,36 +173,35 @@ func newBufferWriter(w io.Writer) *bufio.Writer {
 	return bufio.NewWriterSize(w, 4096)
 }
 
-func truncateCorruption(file string) (bad []byte, offset uint64, err error) {
+func truncateCorruption(file string) (bad []byte, lastMessage *Message, err error) {
 	f, err := os.OpenFile(file, os.O_RDWR, 0644)
 	if err != nil {
-		return nil, 0, err
+		return nil, &Message{}, err
 	}
 	defer f.Close()
 	var msg Message
-	var lastOffset uint64
+	var lastMsg Message
 	for {
 		n, err := msg.ReadFrom(f)
 		if err != nil {
-			lastOffset++
 			switch err {
 			case io.EOF, io.ErrUnexpectedEOF, errMessageCorrupted:
 				offset, err := f.Seek(-n, io.SeekCurrent)
 				if err != nil {
-					return nil, lastOffset, err
+					return nil, &lastMsg, err
 				}
 				truncatedMsg, err := ioutil.ReadAll(f)
 				if err != nil {
-					return nil, lastOffset, err
+					return nil, &lastMsg, err
 				}
 				if err := f.Truncate(offset); err != nil {
-					return nil, lastOffset, err
+					return nil, &lastMsg, err
 				}
-				return truncatedMsg, lastOffset, nil
+				return truncatedMsg, &lastMsg, nil
 			default:
-				return nil, lastOffset, err
+				return nil, &lastMsg, err
 			}
 		}
-		lastOffset = msg.Offset
+		lastMsg = msg
 	}
 }
