@@ -45,3 +45,28 @@ All integers are written in the big endian format.
  key       | the encoded key
  value     | the encoded value
  size      | the size of the whole message including itself, allowing reading backward
+
+Writer
+------
+
+* Append from the last offset in segmented journal files
+* File lock to prevent other writers from opening the journal files
+* Startup corruption detection & truncation
+
+Scanner
+-------
+
+* Read from an offset in segmented journal files
+* Change monitoring
+    - directory
+    - file append
+* Handle incomplete last message
+* Timeout
+
+Offset
+------
+
+* First/last offset
+* Offset persistence
+
+
