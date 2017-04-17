@@ -77,9 +77,6 @@ func (d *DumpCommand) Execute(args []string) error {
 
 type LastOffsetCommand struct {
 	JournalDirConfig `positional-args:"yes"  required:"yes"`
-	Offset           string `
-		long:"offset"
-		description:"the offset"`
 }
 
 func (c *LastOffsetCommand) Execute(args []string) error {
