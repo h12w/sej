@@ -12,6 +12,8 @@ type Offset struct {
 	file     string
 	fileLock *fileLock
 	value    uint64
+
+	Syncing bool
 }
 
 type DefaultOffset int
@@ -79,8 +81,10 @@ func (o *Offset) Commit(offset uint64) error {
 		f.Close()
 		return err
 	}
-	if err := f.Sync(); err != nil {
-		return err
+	if o.Syncing {
+		if err := f.Sync(); err != nil {
+			return err
+		}
 	}
 	if err := f.Close(); err != nil {
 		return err
@@ -89,8 +93,10 @@ func (o *Offset) Commit(offset uint64) error {
 		os.Remove(file)
 		return err
 	}
-	if err := o.dir.Sync(); err != nil {
-		return err
+	if o.Syncing {
+		if err := o.dir.Sync(); err != nil {
+			return err
+		}
 	}
 	o.value = offset
 	return nil

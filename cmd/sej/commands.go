@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -44,6 +45,71 @@ func (d *TimestampCommand) Execute(args []string) error {
 	}
 	fmt.Println("offset:", s.Offset())
 	fmt.Println("timestamp:", s.Message().Timestamp)
+	return nil
+}
+
+type CountCommand struct {
+	JournalDirConfig `positional-args:"yes"  required:"yes"`
+	Start            Timestamp `
+	long:"start"
+	description:"start time"`
+	End Timestamp `
+	long:"end"
+	description:"start time"`
+	Type byte `
+	long:"type"
+	description:"message type"`
+}
+
+func (c *CountCommand) Execute(args []string) error {
+	//fmt.Println("couting from", c.Start, c.End, "for type", c.Type)
+	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
+	if err != nil {
+		return err
+	}
+	startOffset := dir.First().FirstOffset
+	for _, file := range dir.Files {
+		f, err := os.Open(file.FileName)
+		if err != nil {
+			return err
+		}
+		var msg sej.Message
+		if _, err := msg.ReadFrom(f); err != nil && err != io.EOF {
+			f.Close()
+			return err
+		}
+		f.Close()
+		if msg.Timestamp.After(c.Start.Time) {
+			break
+		}
+		startOffset = file.FirstOffset
+	}
+	if int(startOffset)-5000 > 0 {
+		startOffset -= 5000
+	}
+	s, err := sej.NewScanner(c.Dir, startOffset)
+	if err != nil {
+		return err
+	}
+	s.Timeout = time.Second
+	cnt := 0
+	overCount := 0
+	for s.Scan() {
+		msg := s.Message()
+		if !msg.Timestamp.Before(c.Start.Time) {
+			if msg.Timestamp.Before(c.End.Time) {
+				if msg.Type == c.Type {
+					cnt++
+				}
+			} else {
+				overCount++
+			}
+		}
+		if overCount > 5000 {
+			break
+		}
+	}
+	fmt.Println(cnt)
 	return nil
 }
 
@@ -234,5 +300,20 @@ func (c *CleanCommand) Execute(args []string) error {
 		}
 		log.Printf("%s removed", journalFile.FileName)
 	}
+	return nil
+}
+
+type Timestamp struct {
+	time.Time
+}
+
+const timeFormat = "2006-01-02T15:04:05"
+
+func (t *Timestamp) UnmarshalFlag(value string) error {
+	tm, err := time.Parse(timeFormat, value)
+	if err != nil {
+		return fmt.Errorf("error parsing %s: %s", value, err.Error())
+	}
+	t.Time = tm
 	return nil
 }
