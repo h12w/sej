@@ -61,6 +61,7 @@ Scanner
     - directory
     - file append
 * Handle incomplete last message
+* Truncation detection & fail fast
 * Timeout
 
 Offset

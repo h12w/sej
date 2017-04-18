@@ -70,6 +70,8 @@ func (d *watchedJournalDir) Close() error {
 	return d.watcher.Close()
 }
 
+// watchedFile is a io.SeekReader and reopens the underlying file
+// whenever reading to an io.EOF
 type watchedFile struct {
 	file     *os.File
 	fileName string
@@ -123,6 +125,17 @@ func (f *watchedFile) reopen() error {
 	newFile, err := os.Open(f.file.Name())
 	if err != nil {
 		return err
+	}
+	stat, err := newFile.Stat()
+	if err != nil {
+		return err
+	}
+	if oldOffset > stat.Size() {
+		return &ScanTruncatedError{
+			File:       f.file.Name(),
+			Size:       stat.Size(),
+			FileOffset: oldOffset,
+		}
 	}
 	if _, err := newFile.Seek(oldOffset, os.SEEK_SET); err != nil {
 		newFile.Close()

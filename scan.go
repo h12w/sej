@@ -113,16 +113,19 @@ func (r *Scanner) Scan() bool {
 
 	// check offset
 	if r.message.Offset != r.offset {
-		r.err = &OffsetError{
+		r.err = &ScanOffsetError{
 			File:           r.file.FileName(),
 			Offset:         r.message.Offset,
 			Timestamp:      r.message.Timestamp,
 			ExpectedOffset: r.offset,
 		}
 	}
-	r.offset = r.message.Offset + 1
+	if r.err != nil {
+		return false
+	}
 
-	return r.err == nil
+	r.offset = r.message.Offset + 1
+	return true
 }
 
 func (r *Scanner) Message() *Message {
@@ -130,11 +133,7 @@ func (r *Scanner) Message() *Message {
 }
 
 func (r *Scanner) Err() error {
-	err := r.err
-	if _, ok := err.(*OffsetError); ok {
-		r.err = nil // recoverable error, return it only once
-	}
-	return err
+	return r.err
 }
 
 func (r *Scanner) reopenFile() error {

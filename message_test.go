@@ -39,7 +39,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 	}
 }
 
-func TestReadTruncated(t *testing.T) {
+func TestReadTruncatedMessage(t *testing.T) {
 	for cut := 20; cut >= 1; cut-- {
 		path := newTestPath(t)
 		w := newTestWriter(t, path)
@@ -60,13 +60,13 @@ func TestReadTruncated(t *testing.T) {
 			t.Fatal("expect error but got nil")
 		}
 
+		// test bytes read n
 		fileOffset, err := f.Seek(-n, io.SeekCurrent)
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		if offset := fileOffset; offset != 0 {
-			t.Fatalf("cut=%d: expect offset 0 after failed reading, but got %d", cut, offset)
+		if fileOffset != 0 {
+			t.Fatalf("cut=%d: expect offset 0 after failed reading, but got %d", cut, fileOffset)
 		}
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestReadThroughSegmentBoundary(t *testing.T) {
+func TestScanThroughSegmentBoundary(t *testing.T) {
 	messages := []string{"a", "b", "c"}
 
 	path := newTestPath(t)
@@ -21,7 +21,7 @@ func TestReadThroughSegmentBoundary(t *testing.T) {
 	verifyReadMessages(t, path, messages...)
 }
 
-func TestReadFromOffset(t *testing.T) {
+func TestScanFromOffset(t *testing.T) {
 	messages := []string{"a", "b", "c", "d", "e"}
 	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 1000} {
 		func() {
@@ -56,7 +56,7 @@ func TestReadFromOffset(t *testing.T) {
 	}
 }
 
-func TestReadBeforeWrite(t *testing.T) {
+func TestScanBeforeWrite(t *testing.T) {
 	messages := []string{"a", "b", "c", "d", "e"}
 	for _, segmentSize := range []int{metaSize + 1, (metaSize + 1) * 2, 1000} {
 		func() {
@@ -91,7 +91,7 @@ func TestReadBeforeWrite(t *testing.T) {
 	}
 }
 
-func TestReadTimeoutAndAgain(t *testing.T) {
+func TestScanTimeoutAndAgain(t *testing.T) {
 	path := newTestPath(t)
 	w := newTestWriter(t, path, 1000)
 
