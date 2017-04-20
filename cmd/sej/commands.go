@@ -12,6 +12,7 @@ import (
 
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/vmihailenco/msgpack.v2"
+	"gopkg.in/yaml.v2"
 	"h12.me/errors"
 	"h12.me/sej"
 	"h12.me/uuid/hexid"
@@ -48,7 +49,7 @@ func (d *TimestampCommand) Execute(args []string) error {
 	return nil
 }
 
-type CountCommand struct {
+type ScanCommand struct {
 	JournalDirConfig `positional-args:"yes"  required:"yes"`
 	Start            Timestamp `
 	long:"start"
@@ -59,9 +60,25 @@ type CountCommand struct {
 	Type byte `
 	long:"type"
 	description:"message type"`
+	Format string `
+		long:"format"
+		default:"msgpack"
+		description:"encoding format of the message"`
+	Count bool `
+		long:"count"
+		description:"count or print"
+	`
 }
 
+type CountCommand ScanCommand
+
 func (c *CountCommand) Execute(args []string) error {
+	scanCmd := ScanCommand(*c)
+	scanCmd.Count = true
+	return scanCmd.Execute(args)
+}
+
+func (c *ScanCommand) Execute(args []string) error {
 	//fmt.Println("couting from", c.Start, c.End, "for type", c.Type)
 	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
 	if err != nil {
@@ -99,6 +116,13 @@ func (c *CountCommand) Execute(args []string) error {
 		if !msg.Timestamp.Before(c.Start.Time) {
 			if msg.Timestamp.Before(c.End.Time) {
 				if msg.Type == c.Type {
+					if !c.Count {
+						switch c.Format {
+						case "json", "msgpack", "bson":
+							line, _ := Format(c.Format).Sprint(msg)
+							fmt.Println(line)
+						}
+					}
 					cnt++
 				}
 			} else {
@@ -109,7 +133,9 @@ func (c *CountCommand) Execute(args []string) error {
 			break
 		}
 	}
-	fmt.Println(cnt)
+	if c.Count {
+		fmt.Println(cnt)
+	}
 	return nil
 }
 
@@ -141,20 +167,28 @@ func (d *DumpCommand) Execute(args []string) error {
 	return nil
 }
 
-type LastOffsetCommand struct {
+type OffsetCommand struct {
 	JournalDirConfig `positional-args:"yes"  required:"yes"`
 }
 
-func (c *LastOffsetCommand) Execute(args []string) error {
+func (c *OffsetCommand) Execute(args []string) error {
 	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
 	if err != nil {
 		return err
 	}
-	offset, err := dir.Last().LastReadableOffset()
+	firstOffset := dir.First().FirstOffset
+	lastOffset, err := dir.Last().LastReadableOffset()
 	if err != nil {
 		return err
 	}
-	fmt.Println(offset)
+	fmt.Println("first:", firstOffset)
+	fmt.Println("last:", lastOffset)
+	offsets, err := readOffsets(c.Dir)
+	if err != nil {
+		return err
+	}
+	buf, _ := yaml.Marshal(offsets)
+	fmt.Println(string(buf))
 	return nil
 }
 
@@ -265,21 +299,11 @@ func (c *CleanCommand) Execute(args []string) error {
 	}
 	slowestReader := ""
 	slowestOffset := latest
-	ofsFiles, err := filepath.Glob(path.Join(sej.OffsetDirPath(c.Dir), "*.ofs"))
+	offsets, err := readOffsets(c.Dir)
 	if err != nil {
 		return errors.Wrap(err)
 	}
-	for _, ofsFile := range ofsFiles {
-		f, err := os.Open(ofsFile)
-		if err != nil {
-			return errors.Wrap(err)
-		}
-		offset, err := sej.ReadOffset(f)
-		if err != nil {
-			f.Close()
-			return errors.Wrap(err)
-		}
-		f.Close()
+	for ofsFile, offset := range offsets {
 		if offset < slowestOffset {
 			slowestReader = ofsFile
 			slowestOffset = offset
@@ -316,4 +340,26 @@ func (t *Timestamp) UnmarshalFlag(value string) error {
 	}
 	t.Time = tm
 	return nil
+}
+
+func readOffsets(dir string) (map[string]uint64, error) {
+	offsets := make(map[string]uint64)
+	ofsFiles, err := filepath.Glob(path.Join(sej.OffsetDirPath(dir), "*.ofs"))
+	if err != nil {
+		return nil, errors.Wrap(err)
+	}
+	for _, ofsFile := range ofsFiles {
+		f, err := os.Open(ofsFile)
+		if err != nil {
+			return nil, errors.Wrap(err)
+		}
+		offset, err := sej.ReadOffset(f)
+		if err != nil {
+			f.Close()
+			return nil, errors.Wrap(err)
+		}
+		f.Close()
+		offsets[ofsFile] = offset
+	}
+	return offsets, nil
 }

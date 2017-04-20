@@ -8,13 +8,17 @@ type Command struct {
                 command:"dump"
                 description:"dump all messages from a journal file"`
 
+	Scan ScanCommand `
+                command:"scan"
+                description:"scan messages in range"`
+
 	Count CountCommand `
                 command:"count"
                 description:"count messages in range"`
 
-	LastOffset LastOffsetCommand `
-                command:"last-offset"
-                description:"print the last offset of a journal file"`
+	Offset OffsetCommand `
+                command:"offset"
+                description:"print first, last offset and all consumer offsets of a journal directory"`
 
 	Tail TailCommand `
                 command:"tail"
@@ -26,7 +30,7 @@ type Command struct {
 
 	Timestamp TimestampCommand `
                 command:"timestamp"
-                description:"show timestamp of an offset ina journal"`
+                description:"show timestamp of an offset in a journal directory"`
 }
 
 func main() {

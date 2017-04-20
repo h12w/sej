@@ -3,12 +3,12 @@ TODO
 
 ### Command line tool
 
-* dump (done)
-* last-offset (done)
+* offset (done)
+* count (done)
+* scan (done)
 * tail (done)
 * clean (done)
-* range
-* count
+* dump (done)
 * rollback
 
 ### Benchmark
