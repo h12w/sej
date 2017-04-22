@@ -272,33 +272,29 @@ func (format Format) Sprint(msg *sej.Message) (string, error) {
 	return string(buf), nil
 }
 
-type CleanCommand struct {
-	Max int `
-		long:"max"
-		default:"2"
-		description:"max number of journal files kept after cleanning"`
+type OldCommand struct {
+	Days int `
+		long:"days"
+		default:"7"
+		description:"max number of days of journal files kept after cleanning"`
 	JournalDirConfig `positional-args:"yes"  required:"yes"`
 }
 
-func (c *CleanCommand) Execute(args []string) error {
-	if c.Max < 1 {
-		return errors.New("max must be at least 1")
+func (c *OldCommand) Execute(args []string) error {
+	if c.Days < 1 {
+		return errors.New("days must be at least 1")
 	}
 	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
 	if err != nil {
 		return errors.Wrap(err)
 	}
-	// make sure len(dir.Files) > c.Max
-	if len(dir.Files) <= c.Max {
-		return nil
-	}
 
-	latest, err := dir.Last().LastOffset()
+	lastOffset, err := dir.Last().LastReadableOffset()
 	if err != nil {
 		return errors.Wrap(err)
 	}
 	slowestReader := ""
-	slowestOffset := latest
+	slowestOffset := lastOffset
 	offsets, err := readOffsets(c.Dir)
 	if err != nil {
 		return errors.Wrap(err)
@@ -310,19 +306,20 @@ func (c *CleanCommand) Execute(args []string) error {
 		}
 	}
 
-	for _, journalFile := range dir.Files[:len(dir.Files)-c.Max] {
-		lastOffset, err := journalFile.LastOffset()
+	daysAgo := time.Now().Add(-time.Duration(c.Days) * time.Hour * 24)
+	for _, journalFile := range dir.Files[:len(dir.Files)-1] {
+		lastMessage, err := journalFile.LastMessage()
 		if err != nil {
 			return errors.Wrap(err)
 		}
-		if slowestOffset <= lastOffset {
-			log.Printf("stop cleaning %s (%d-%d) because of slow reader %s\n", journalFile.FileName, journalFile.FirstOffset, lastOffset, slowestReader)
+		if slowestOffset <= lastMessage.Offset {
+			log.Printf("cannot clean %s (%d-%d) because of slow reader %s\n", journalFile.FileName, journalFile.FirstOffset, lastMessage.Offset, slowestReader)
 			break
 		}
-		if err := os.Remove(journalFile.FileName); err != nil {
-			return errors.Wrap(err)
+		if !lastMessage.Timestamp.Before(daysAgo) {
+			break
 		}
-		log.Printf("%s removed", journalFile.FileName)
+		fmt.Println(journalFile.FileName)
 	}
 	return nil
 }

@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	errMessageCorrupted = errors.New("last message of the journal file is courrupted")
+	errMessageCorrupted   = errors.New("last message of the journal file is courrupted")
+	errJournalFileIsEmpty = errors.New("the journal file is empty")
 )
 
 // Message in a segmented journal file
@@ -266,23 +267,34 @@ func readUint32(r io.ReadSeeker, i *uint32) (int, error) {
 	return n, nil
 }
 
-// LatestOffset returns the offset after the last message in a journal file
-func (journalFile *JournalFile) LastOffset() (uint64, error) {
+func (journalFile *JournalFile) LastMessage() (*Message, error) {
 	file, err := os.Open(journalFile.FileName)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer file.Close()
 	fileSize, err := file.Seek(0, os.SEEK_END)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	if fileSize == 0 {
-		return journalFile.FirstOffset, nil
+		return nil, errJournalFileIsEmpty
 	}
 	msg, err := readMessageBackward(file)
 	if err != nil {
-		return 0, errMessageCorrupted
+		return nil, errMessageCorrupted
+	}
+	return msg, nil
+}
+
+// LatestOffset returns the offset after the last message in a journal file
+func (journalFile *JournalFile) LastOffset() (uint64, error) {
+	msg, err := journalFile.LastMessage()
+	if err != nil {
+		if err == errJournalFileIsEmpty {
+			return journalFile.FirstOffset, nil
+		}
+		return 0, err
 	}
 	return msg.Offset + 1, nil
 }

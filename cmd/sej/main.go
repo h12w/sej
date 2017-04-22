@@ -10,7 +10,7 @@ type Command struct {
 
 	Scan ScanCommand `
                 command:"scan"
-                description:"scan messages in range"`
+                description:"scan and print messages in range"`
 
 	Count CountCommand `
                 command:"count"
@@ -24,9 +24,9 @@ type Command struct {
                 command:"tail"
                 description:"print the tailing messages of a segmented journal directory"`
 
-	Clean CleanCommand `
-                command:"clean"
-                description:"clean journal files according to cleaning rules"`
+	Old OldCommand `
+                command:"old"
+                description:"print old journal files according to rules"`
 
 	Timestamp TimestampCommand `
                 command:"timestamp"
