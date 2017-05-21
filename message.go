@@ -267,6 +267,26 @@ func readUint32(r io.ReadSeeker, i *uint32) (int, error) {
 	return n, nil
 }
 
+func (journalFile *JournalFile) FirstMessage() (*Message, error) {
+	file, err := os.Open(journalFile.FileName)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	fileStat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if fileStat.Size() == 0 {
+		return nil, errJournalFileIsEmpty
+	}
+	var msg Message
+	if _, err := msg.ReadFrom(file); err != nil {
+		return nil, err
+	}
+	return &msg, nil
+}
+
 func (journalFile *JournalFile) LastMessage() (*Message, error) {
 	file, err := os.Open(journalFile.FileName)
 	if err != nil {

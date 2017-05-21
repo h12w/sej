@@ -18,6 +18,32 @@ import (
 	"h12.me/uuid/hexid"
 )
 
+type FileCommand struct {
+	JournalFileConfig `positional-args:"yes"  required:"yes"`
+}
+
+func (c *FileCommand) Execute(args []string) error {
+	jf, err := sej.ParseJournalFileName(path.Split(c.JournalFile))
+	if err != nil {
+		return err
+	}
+	firstMsg, err := jf.FirstMessage()
+	if err != nil {
+		return err
+	}
+	fmt.Println("first:")
+	fmt.Println("    offset:", firstMsg.Offset)
+	fmt.Println("    timestamp:", firstMsg.Timestamp)
+	lastMsg, err := jf.LastMessage()
+	if err != nil {
+		return err
+	}
+	fmt.Println("last:")
+	fmt.Println("    offset:", lastMsg.Offset)
+	fmt.Println("    timestamp:", lastMsg.Timestamp)
+	return nil
+}
+
 type TimestampCommand struct {
 	JournalDirConfig `positional-args:"yes"  required:"yes"`
 	Offset           string `
@@ -62,7 +88,7 @@ type ScanCommand struct {
 	description:"message type"`
 	Format string `
 		long:"format"
-		default:"msgpack"
+		default:"bson"
 		description:"encoding format of the message"`
 	Count bool `
 		long:"count"
@@ -203,7 +229,7 @@ type TailCommand struct {
 		default:"10"`
 	Format string `
 		long:"format"
-		default:"msgpack"
+		default:"bson"
 		description:"encoding format of the message"`
 	JournalDirConfig `positional-args:"yes"  required:"yes"`
 }

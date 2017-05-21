@@ -28,6 +28,10 @@ type Command struct {
                 command:"old"
                 description:"print old journal files according to rules"`
 
+	File FileCommand `
+                command:"file"
+                description:"print info about a journal file"`
+
 	Timestamp TimestampCommand `
                 command:"timestamp"
                 description:"show timestamp of an offset in a journal directory"`
