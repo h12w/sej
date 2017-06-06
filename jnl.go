@@ -97,17 +97,17 @@ func (d *JournalDir) isLast(f *JournalFile) bool {
 }
 
 func (d *JournalDir) find(offset uint64) (*JournalFile, error) {
+	if offset < d.Files[0].FirstOffset {
+		// offset is too small, return the first journal file
+		return &d.Files[0], nil
+	}
 	for i := 0; i < len(d.Files)-1; i++ {
 		if d.Files[i].FirstOffset <= offset && offset < d.Files[i+1].FirstOffset {
 			return &d.Files[i], nil
 		}
 	}
-	if len(d.Files) == 1 && d.Files[0].FirstOffset <= offset {
-		return &d.Files[0], nil
-	} else if d.Files[len(d.Files)-1].FirstOffset <= offset {
-		return &d.Files[len(d.Files)-1], nil
-	}
-	return nil, errors.New("offset is too small")
+	// return the last journal file
+	return &d.Files[len(d.Files)-1], nil
 }
 
 // TODO: use binary search as an optimization

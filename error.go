@@ -14,6 +14,12 @@ var (
 	ErrTimeout = errors.New("read timeout")
 )
 
+// internal errors
+var (
+	// errOffsetTooSmall is returned when the journal file containing the offset has been cleaned up
+	errOffsetTooSmall = errors.New("offset is too small")
+)
+
 // CorruptionError is returned when the last message of a segmented journal file is corrupted
 type CorruptionError struct {
 	File      string
