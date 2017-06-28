@@ -105,7 +105,7 @@ func (c *CountCommand) Execute(args []string) error {
 }
 
 func (c *ScanCommand) Execute(args []string) error {
-	//fmt.Println("couting from", c.Start, c.End, "for type", c.Type)
+	// fmt.Fprintln(os.Stderr, "couting from", c.Start, c.End, "for type", c.Type)
 	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
 	if err != nil {
 		return err
@@ -123,6 +123,7 @@ func (c *ScanCommand) Execute(args []string) error {
 		}
 		f.Close()
 		if msg.Timestamp.After(c.Start.Time) {
+			// fmt.Fprintf(os.Stderr, "start from %v, %d\n", msg.Timestamp, startOffset)
 			break
 		}
 		startOffset = file.FirstOffset
@@ -141,7 +142,7 @@ func (c *ScanCommand) Execute(args []string) error {
 		msg := s.Message()
 		if !msg.Timestamp.Before(c.Start.Time) {
 			if msg.Timestamp.Before(c.End.Time) {
-				if msg.Type == c.Type {
+				if c.Type == 0 || msg.Type == c.Type {
 					if !c.Count {
 						switch c.Format {
 						case "json", "msgpack", "bson":
