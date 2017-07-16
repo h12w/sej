@@ -378,7 +378,7 @@ func readOffsets(dir string) (map[string]uint64, error) {
 			return nil, errors.Wrap(err)
 		}
 		offset, err := sej.ReadOffset(f)
-		if err != nil {
+		if err != nil && err != io.EOF {
 			f.Close()
 			return nil, errors.Wrap(err)
 		}
