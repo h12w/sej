@@ -208,8 +208,8 @@ func (c *OffsetCommand) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("first:", firstOffset)
-	fmt.Println("last:", lastOffset)
+	fmt.Println(path.Join(c.Dir, "first:"), firstOffset)
+	fmt.Println(path.Join(c.Dir, "last:"), lastOffset)
 	offsets, err := readOffsets(c.Dir)
 	if err != nil {
 		return err
