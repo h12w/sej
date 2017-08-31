@@ -3,6 +3,7 @@ package shard
 import (
 	"bytes"
 	"fmt"
+	"hash/crc32"
 	"hash/fnv"
 	"strconv"
 	"testing"
@@ -12,7 +13,7 @@ import (
 
 func BenchmarkAppend(b *testing.B) {
 	path := newTestPath(b)
-	w, err := NewWriter(path, 8, shardFunc)
+	w, err := NewWriter(path, 8, shardFNV)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -34,7 +35,11 @@ func BenchmarkAppend(b *testing.B) {
 	b.StopTimer()
 }
 
-func shardFunc(msg *sej.Message) uint32 {
+func shardCRC(msg *sej.Message) uint32 {
+	return crc32.ChecksumIEEE(msg.Key)
+}
+
+func shardFNV(msg *sej.Message) uint32 {
 	h := fnv.New32a()
 	h.Write(msg.Key)
 	return h.Sum32()
