@@ -1,27 +1,35 @@
 package sej
 
 import (
-	"strings"
+	"bytes"
+	"strconv"
 	"testing"
 )
 
-func BenchmarkWrite(b *testing.B) {
+func BenchmarkAppend(b *testing.B) {
 	path := newTestPath(b)
-	w := newTestWriter(b, path, 500000000)
-	defer w.Close()
-	msg := []byte(strings.Repeat("x", 128))
+	w := newTestWriter(b, path, 1024*1024*1024)
+
+	keys := make([][]byte, b.N)
+	for i := range keys {
+		keys[i] = []byte("key-" + strconv.Itoa(i))
+	}
+	value := bytes.Repeat([]byte{'a'}, 100)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := w.Append(Message{Value: msg}); err != nil {
+		if err := w.Append(Message{Key: keys[i], Value: value}); err != nil {
 			b.Fatal(err)
 		}
 	}
+	w.Flush()
+	b.StopTimer()
+	closeTestWriter(b, w)
 }
 
 func BenchmarkWriterStartup(b *testing.B) {
 	path := newTestPath(b)
 	w := newTestWriter(b, path, 1024*1024*1024)
-	for i := 0; i < 48*1024*1024; i++ {
+	for i := 0; i < 1024*1024; i++ {
 		w.Append(Message{Value: []byte("a")})
 	}
 	w.Close()

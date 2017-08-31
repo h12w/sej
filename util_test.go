@@ -1,9 +1,9 @@
 package sej
 
 import (
-	"io/ioutil"
 	"math/rand"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -36,7 +36,7 @@ func newTestWriter(t testing.TB, dir string, segmentSize ...int) *Writer {
 	return w
 }
 
-func closeTestWriter(t *testing.T, w *Writer) {
+func closeTestWriter(t testing.TB, w *Writer) {
 	if err := w.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -96,8 +96,8 @@ func (fs *JournalDir) sizes(t *testing.T) []int {
 }
 
 func newTestPath(t testing.TB) string {
-	path, err := ioutil.TempDir(".", testFilePrefix)
-	if err != nil {
+	path := testFilePrefix + strconv.Itoa(rand.Int())
+	if err := os.Mkdir(path, 0755); err != nil {
 		t.Fatal(err)
 	}
 	return path
