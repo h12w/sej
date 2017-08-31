@@ -44,8 +44,8 @@ func shardDir(rootDir string, shardIndex int) string {
 	return dir
 }
 
-func (w *Writer) Append(msg sej.Message) error {
-	return w.ws[int(w.shard(&msg)&w.shardMask)].Append(msg)
+func (w *Writer) Append(msg *sej.Message) error {
+	return w.ws[int(w.shard(msg)&w.shardMask)].Append(msg)
 }
 
 func (w *Writer) Flush() error {

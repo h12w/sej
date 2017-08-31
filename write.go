@@ -84,7 +84,7 @@ func NewWriter(dir string) (*Writer, error) {
 }
 
 // Append appends a message to the journal
-func (w *Writer) Append(msg Message) error {
+func (w *Writer) Append(msg *Message) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.err != nil { // skip if an error already happens

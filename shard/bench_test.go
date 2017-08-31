@@ -27,7 +27,7 @@ func BenchmarkAppend(b *testing.B) {
 	value := bytes.Repeat([]byte{'a'}, 100)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := w.Append(sej.Message{Key: keys[i], Value: value}); err != nil {
+		if err := w.Append(&sej.Message{Key: keys[i], Value: value}); err != nil {
 			b.Fatal(err)
 		}
 	}
