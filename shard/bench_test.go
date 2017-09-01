@@ -2,8 +2,8 @@ package shard
 
 import (
 	"bytes"
+	"fmt"
 	"hash/crc32"
-	"strconv"
 	"testing"
 	"time"
 
@@ -19,12 +19,13 @@ func BenchmarkAppend(b *testing.B) {
 
 	keys := make([][]byte, b.N)
 	for i := range keys {
-		keys[i] = []byte("key-" + strconv.Itoa(i))
+		keys[i] = []byte("key-" + fmt.Sprintf("%09x", i))
 	}
 	value := bytes.Repeat([]byte{'a'}, 100)
 	now := time.Now()
 	msg := sej.Message{Value: value, Timestamp: now}
-	timeAppend(b, w, keys, &msg)
+	// timeAppend(b, w, keys, &msg)
+	timeAppendParallel(b, w, keys, &msg)
 	w.Close()
 }
 
@@ -40,7 +41,25 @@ func timeAppend(b *testing.B, w *Writer, keys [][]byte, msg *sej.Message) {
 		b.Fatal(err)
 	}
 	b.StopTimer()
+}
 
+func timeAppendParallel(b *testing.B, w *Writer, keys [][]byte, msg *sej.Message) {
+	b.SetParallelism(2)
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			msg.Key = keys[i]
+			if err := w.Append(msg); err != nil {
+				b.Fatal(err)
+			}
+			i++
+		}
+	})
+	if err := w.Flush(); err != nil {
+		b.Fatal(err)
+	}
+	b.StopTimer()
 }
 
 func shardCRC(msg *sej.Message) uint16 {
