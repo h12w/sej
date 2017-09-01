@@ -24,16 +24,23 @@ func BenchmarkAppend(b *testing.B) {
 	value := bytes.Repeat([]byte{'a'}, 100)
 	now := time.Now()
 	msg := sej.Message{Value: value, Timestamp: now}
+	timeAppend(b, w, keys, &msg)
+	w.Close()
+}
+
+func timeAppend(b *testing.B, w *Writer, keys [][]byte, msg *sej.Message) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		msg.Key = keys[i]
-		if err := w.Append(&msg); err != nil {
+		if err := w.Append(msg); err != nil {
 			b.Fatal(err)
 		}
 	}
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		b.Fatal(err)
+	}
 	b.StopTimer()
-	w.Close()
+
 }
 
 func shardCRC(msg *sej.Message) uint32 {
