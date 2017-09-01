@@ -24,8 +24,8 @@ type (
 // the number of shards is 1<<shardBit
 // the shard mask is 1<<shardBit - 1
 func NewWriter(dir string, shardBit uint, shardFunc HashFunc) (*Writer, error) {
-	if shardBit > 10 {
-		return nil, errors.New("shardBit should be no more than 10")
+	if shardBit == 0 || shardBit > 10 {
+		return nil, errors.New("shardBit should be larger than 0 and no more than 10")
 	}
 	writer := Writer{
 		ws:        make([]*sej.Writer, 1<<shardBit),
@@ -34,7 +34,7 @@ func NewWriter(dir string, shardBit uint, shardFunc HashFunc) (*Writer, error) {
 	}
 	for i := range writer.ws {
 		var err error
-		writer.ws[i], err = sej.NewWriter(shardDir(dir, writer.shardMask, i))
+		writer.ws[i], err = sej.NewWriter(shardDir(dir, shardBit, i))
 		if err != nil {
 			writer.Close()
 			return nil, err
@@ -43,8 +43,8 @@ func NewWriter(dir string, shardBit uint, shardFunc HashFunc) (*Writer, error) {
 	return &writer, nil
 }
 
-func shardDir(rootDir string, shardMask uint16, shardIndex int) string {
-	dir := path.Join(rootDir, "shd", fmt.Sprintf("%03x", shardMask), fmt.Sprintf("%03x", shardIndex))
+func shardDir(rootDir string, shardBit uint, shardIndex int) string {
+	dir := path.Join(rootDir, "shd", fmt.Sprintf("%x", shardBit), fmt.Sprintf("%03x", shardIndex))
 	return dir
 }
 
