@@ -77,7 +77,7 @@ func (o *Offset) Commit(offset uint64) error {
 	if err != nil {
 		return err
 	}
-	if _, err := writeUint64(f, offset); err != nil {
+	if _, err := writeUint64(f, make([]byte, 8), offset); err != nil {
 		f.Close()
 		return err
 	}

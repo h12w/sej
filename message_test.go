@@ -22,7 +22,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 		Value:     []byte("b"),
 	}
 	var buf bytes.Buffer
-	n1, err := msg.WriteTo(&buf)
+	n1, err := WriteMessage(&buf, make([]byte, 8), &msg)
 	if err != nil {
 		t.Fatal(err)
 	}

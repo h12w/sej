@@ -1,6 +1,7 @@
 package sej
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -28,11 +29,12 @@ type readSeekCloser interface {
 	io.Closer
 }
 
-// WriteTo writes the message to w
-func (m *Message) WriteTo(w io.Writer) (int64, error) {
+// WriteMessage writes the message
+// buf should be at least 8 bytes and is used to avoid allocation
+func WriteMessage(w io.Writer, buf []byte, m *Message) (int64, error) {
 	cnt := int64(0) // total bytes written
 
-	n, err := writeUint64(w, m.Offset)
+	n, err := writeUint64(w, buf, m.Offset)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -42,19 +44,19 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 	if ts.IsZero() {
 		ts = time.Now().UTC()
 	}
-	n, err = writeInt64(w, ts.UnixNano())
+	n, err = writeInt64(w, buf, ts.UnixNano())
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
 	}
 
-	n, err = writeByte(w, m.Type)
+	n, err = writeByte(w, buf, m.Type)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
 	}
 
-	n, err = writeInt8(w, int8(len(m.Key)))
+	n, err = writeInt8(w, buf, int8(len(m.Key)))
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -66,7 +68,7 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 		return cnt, err
 	}
 
-	n, err = writeInt32(w, int32(len(m.Value)))
+	n, err = writeInt32(w, buf, int32(len(m.Value)))
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -78,7 +80,7 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 		return cnt, err
 	}
 
-	n, err = writeInt32(w, int32(cnt)+4)
+	n, err = writeInt32(w, buf, int32(cnt)+4)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -181,8 +183,9 @@ func readMessageBackward(r io.ReadSeeker) (*Message, error) {
 	return &msg, err
 }
 
-func writeInt8(w io.Writer, i int8) (int, error) {
-	return w.Write([]byte{byte(i)})
+func writeInt8(w io.Writer, buf []byte, i int8) (int, error) {
+	buf[0] = byte(i)
+	return w.Write(buf[:1])
 }
 
 func readInt8(r io.ReadSeeker, i *int8) (int, error) {
@@ -195,8 +198,9 @@ func readInt8(r io.ReadSeeker, i *int8) (int, error) {
 	return n, nil
 }
 
-func writeByte(w io.Writer, i byte) (int, error) {
-	return w.Write([]byte{i})
+func writeByte(w io.Writer, buf []byte, i byte) (int, error) {
+	buf[0] = i
+	return w.Write(buf[:1])
 }
 
 func readByte(r io.ReadSeeker, i *byte) (int, error) {
@@ -209,8 +213,9 @@ func readByte(r io.ReadSeeker, i *byte) (int, error) {
 	return n, nil
 }
 
-func writeInt64(w io.Writer, i int64) (int, error) {
-	return w.Write([]byte{byte(i >> 56), byte(i >> 48), byte(i >> 40), byte(i >> 32), byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
+func writeInt64(w io.Writer, buf []byte, i int64) (int, error) {
+	binary.BigEndian.PutUint64(buf, uint64(i))
+	return w.Write(buf[:8])
 }
 
 func readInt64(r io.ReadSeeker, i *int64) (int, error) {
@@ -224,8 +229,9 @@ func readInt64(r io.ReadSeeker, i *int64) (int, error) {
 	return n, nil
 }
 
-func writeUint64(w io.Writer, i uint64) (int, error) {
-	return w.Write([]byte{byte(i >> 56), byte(i >> 48), byte(i >> 40), byte(i >> 32), byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
+func writeUint64(w io.Writer, buf []byte, i uint64) (int, error) {
+	binary.BigEndian.PutUint64(buf, i)
+	return w.Write(buf[:8])
 }
 
 func readUint64(r io.ReadSeeker, i *uint64) (int, error) {
@@ -239,8 +245,9 @@ func readUint64(r io.ReadSeeker, i *uint64) (int, error) {
 	return n, nil
 }
 
-func writeInt32(w io.Writer, i int32) (int, error) {
-	return w.Write([]byte{byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
+func writeInt32(w io.Writer, buf []byte, i int32) (int, error) {
+	binary.BigEndian.PutUint32(buf, uint32(i))
+	return w.Write(buf[:4])
 }
 
 func readInt32(r io.ReadSeeker, i *int32) (int, error) {

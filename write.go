@@ -20,8 +20,9 @@ type Writer struct {
 	file    *os.File
 	fileLen int
 
-	err error
-	mu  sync.Mutex
+	err    error
+	msgBuf []byte
+	mu     sync.Mutex
 
 	SegmentSize int
 }
@@ -79,6 +80,7 @@ func NewWriter(dir string) (*Writer, error) {
 		offset:      latestOffset,
 		fileLen:     int(stat.Size()),
 		w:           newBufferWriter(file),
+		msgBuf:      make([]byte, 8),
 		SegmentSize: 1024 * 1024 * 1024,
 	}, nil
 }
@@ -86,7 +88,9 @@ func NewWriter(dir string) (*Writer, error) {
 // Append appends a message to the journal
 func (w *Writer) Append(msg *Message) error {
 	w.mu.Lock()
+	// slow but correct: wait for https://github.com/golang/go/issues/14939
 	defer w.mu.Unlock()
+
 	if w.err != nil { // skip if an error already happens
 		return w.err
 	}
@@ -97,7 +101,7 @@ func (w *Writer) Append(msg *Message) error {
 		return errors.New("value is too long")
 	}
 	msg.Offset = w.offset
-	numWritten, err := msg.WriteTo(w.w)
+	numWritten, err := WriteMessage(w.w, w.msgBuf, msg)
 	w.fileLen += int(numWritten)
 	if err != nil {
 		w.err = err
