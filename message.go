@@ -40,7 +40,7 @@ func (m *Message) WriteTo(w io.Writer) (int64, error) {
 
 	ts := m.Timestamp
 	if ts.IsZero() {
-		ts = time.Now()
+		ts = time.Now().UTC()
 	}
 	n, err = writeInt64(w, ts.UnixNano())
 	cnt += int64(n)

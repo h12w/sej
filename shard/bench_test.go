@@ -2,11 +2,10 @@ package shard
 
 import (
 	"bytes"
-	"fmt"
 	"hash/crc32"
-	"hash/fnv"
 	"strconv"
 	"testing"
+	"time"
 
 	"h12.me/sej"
 )
@@ -17,22 +16,24 @@ func BenchmarkAppend(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	fmt.Println(w.ShardCount())
-	defer w.Close()
 
 	keys := make([][]byte, b.N)
 	for i := range keys {
 		keys[i] = []byte("key-" + strconv.Itoa(i))
 	}
 	value := bytes.Repeat([]byte{'a'}, 100)
+	now := time.Now()
+	msg := sej.Message{Value: value, Timestamp: now}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := w.Append(&sej.Message{Key: keys[i], Value: value}); err != nil {
+		msg.Key = keys[i]
+		if err := w.Append(&msg); err != nil {
 			b.Fatal(err)
 		}
 	}
 	w.Flush()
 	b.StopTimer()
+	w.Close()
 }
 
 func shardCRC(msg *sej.Message) uint32 {
@@ -40,7 +41,14 @@ func shardCRC(msg *sej.Message) uint32 {
 }
 
 func shardFNV(msg *sej.Message) uint32 {
-	h := fnv.New32a()
-	h.Write(msg.Key)
-	return h.Sum32()
+	const (
+		offset32 = 2166136261
+		prime32  = 16777619
+	)
+	var s uint32 = offset32
+	for _, c := range msg.Key {
+		s ^= uint32(c)
+		s *= prime32
+	}
+	return s
 }
