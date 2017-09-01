@@ -43,19 +43,22 @@ func timeAppend(b *testing.B, w *Writer, keys [][]byte, msg *sej.Message) {
 
 }
 
-func shardCRC(msg *sej.Message) uint32 {
-	return crc32.ChecksumIEEE(msg.Key)
+func shardCRC(msg *sej.Message) uint16 {
+	const mask16 = 1<<16 - 1
+	s := crc32.ChecksumIEEE(msg.Key)
+	return uint16((s >> 16) ^ (s & mask16))
 }
 
-func shardFNV(msg *sej.Message) uint32 {
+func shardFNV(msg *sej.Message) uint16 {
 	const (
 		offset32 = 2166136261
 		prime32  = 16777619
+		mask16   = 1<<16 - 1
 	)
 	var s uint32 = offset32
 	for _, c := range msg.Key {
 		s ^= uint32(c)
 		s *= prime32
 	}
-	return s
+	return uint16((s >> 16) ^ (s & mask16))
 }

@@ -29,6 +29,7 @@ type Writer struct {
 
 // NewWriter creates a new writer for writing to dir/jnl with file size at least segmentSize
 func NewWriter(dir string) (*Writer, error) {
+	os.MkdirAll(dir, 0755)
 	dir = JournalDirPath(dir)
 	dirLock, err := openFileLock(dir + ".lck")
 	if err != nil {

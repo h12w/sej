@@ -82,7 +82,7 @@ func (r *Scanner) Scan() bool {
 				return false
 			}
 
-			// not the last one, open the next journal file
+			// not the last file, open the next journal file
 			if !r.journalDir.IsLast(r.journalFile) {
 				if r.err = r.reopenFile(); r.err != nil {
 					return false
@@ -90,7 +90,7 @@ func (r *Scanner) Scan() bool {
 				continue
 			}
 
-			// the last one, wait for any changes
+			// the last file, wait for any changes
 			var timeoutChan <-chan time.Time
 			if r.Timeout != 0 {
 				timeoutChan = time.After(r.Timeout)
