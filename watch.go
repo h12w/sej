@@ -190,7 +190,7 @@ func newChangeWatcher(name string, op fsnotify.Op) (*changeWatcher, error) {
 
 // Watch returns an empty channel for receiving a single event after the method is called
 func (w *changeWatcher) Watch() chan bool {
-clearChan:
+clearChan: // clear possible last events from the channel
 	for {
 		select {
 		case <-w.changedCh:

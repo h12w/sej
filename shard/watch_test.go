@@ -2,6 +2,7 @@ package shard
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ func TestWatch(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	runtime.Gosched()
 
 	w, err := NewWriter(dir, 1, shardFNV)
 	if err != nil {

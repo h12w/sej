@@ -27,7 +27,10 @@ func Watch(dir string, open OpenShardFunc) error {
 	watcher := newShardWatcher(dir, open)
 	t := time.Now().UTC()
 	for {
-		watcher.poll(&Shard{Dir: dir})
+		if !dirExists(path.Join(dir, "shd")) {
+			time.Sleep(WatchInterval)
+			continue
+		}
 		maskDirs, err := filepath.Glob(path.Join(dir, "shd", "*"))
 		if err != nil {
 			return err
