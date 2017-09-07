@@ -80,7 +80,7 @@ consumerLoop:
 			start = c.commit(committed + 1)
 		}
 		if err := c.scanner.Err(); err != nil && err != sej.ErrTimeout {
-			c.resetScanner()
+			c.resetScanner() // reset scanner if journal is truncated
 		}
 		select {
 		case stoppedChan = <-c.stopChan:

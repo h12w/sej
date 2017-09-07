@@ -253,6 +253,10 @@ func (c *TailCommand) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	scanner.Timeout = time.Second
+	if scanner.Err() != nil {
+		return scanner.Err()
+	}
 	cnt := 0
 	for scanner.Scan() {
 		switch c.Format {

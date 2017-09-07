@@ -1,11 +1,21 @@
-sej: File-based Segmented Journal (Queue)
-=========================================
+sej: Segmented Journals
+=======================
 
-Directory Structure
--------------------
+`h12.me/sej` provides composable components for implementing persisted message queue and allow the devleoper to trade off between reliablilty, latency and throughput with minimal devops overhead.
+
+Package Organization
+--------------------
+
+* h12.me/sej: writer, scanner and offset
+    * shard: sharding
+    * wire: copying across machines
+    * cmd/sej: command line tool
+
+SEJ Directory
+-------------
 
 ```
-[root-dir]/
+[sej-dir]/
     jnl.lck
     jnl/
         0000000000000000.jnl
@@ -70,4 +80,16 @@ Offset
 * First/last offset
 * Offset persistence
 
+Sharding
+--------
+
+```
+[sharding-dir]/
+    [sharding-bit]/
+        000/
+        001/
+        ......
+```
+
+Each shard directory is a SEJ directory.
 
