@@ -1,6 +1,7 @@
 package shard
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -11,13 +12,20 @@ import (
 type (
 	// Shard contains the shard info for opening
 	Shard struct {
-		Bit   uint   // number of bits that the shard index contains
-		Index int    // shard index
-		Dir   string // shard directory
+		RootDir string // root directory
+		Bit     uint   // number of bits that the shard index contains
+		Index   int    // shard index
 	}
 	// OpenShardFunc callback
 	OpenShardFunc func(*Shard)
 )
+
+func (s Shard) Dir() string {
+	if s.Bit == 0 {
+		return s.RootDir
+	}
+	return path.Join(s.RootDir, "shd", fmt.Sprintf("%x", s.Bit), fmt.Sprintf("%03x", s.Index))
+}
 
 // WatchInterval defines how long the watch polls for a new shard
 var WatchInterval = time.Minute
@@ -27,6 +35,11 @@ func Watch(dir string, open OpenShardFunc) error {
 	watcher := newShardWatcher(dir, open)
 	t := time.Now().UTC()
 	for {
+		if !dirExists(dir) {
+			time.Sleep(WatchInterval)
+			continue
+		}
+		watcher.poll(&Shard{RootDir: dir})
 		if !dirExists(path.Join(dir, "shd")) {
 			time.Sleep(WatchInterval)
 			continue
@@ -42,7 +55,7 @@ func Watch(dir string, open OpenShardFunc) error {
 			}
 			shardCount := int(1 << shardBit)
 			for shardIndex := 0; shardIndex < shardCount; shardIndex++ {
-				watcher.poll(&Shard{Bit: uint(shardBit), Index: shardIndex, Dir: shardDir(dir, uint(shardBit), shardIndex)})
+				watcher.poll(&Shard{RootDir: dir, Bit: uint(shardBit), Index: shardIndex})
 			}
 		}
 		if delay := WatchInterval - time.Since(t); delay > 0 {
@@ -65,15 +78,16 @@ func newShardWatcher(dir string, open OpenShardFunc) shardWatcher {
 }
 
 func (w *shardWatcher) poll(shard *Shard) {
-	if w.dirs[shard.Dir] {
+	dir := shard.Dir()
+	if w.dirs[dir] {
 		return
 	}
-	if !dirExists(path.Join(shard.Dir, "jnl")) {
+	if !dirExists(path.Join(dir, "jnl")) {
 		return
 	}
 
 	// set the guard and go
-	w.dirs[shard.Dir] = true
+	w.dirs[dir] = true
 	w.open(shard)
 }
 
