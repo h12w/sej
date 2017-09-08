@@ -1,7 +1,7 @@
 package wire
 
 import (
-	"bufio"
+	"encoding/gob"
 	"net"
 
 	"github.com/pkg/errors"
@@ -31,16 +31,24 @@ func (s *Server) start() {
 			// Error(err)
 			continue
 		}
-		go session{c: sock, errChan: s.ErrChan}.serve()
+		go newSession(sock).serve()
 	}
 }
 
 type session struct {
 	c       net.Conn
 	errChan chan error
+	dec     *gob.Decoder
 }
 
-func (s session) error(err error) {
+func newSession(c net.Conn) *session {
+	return &session{
+		c:   c,
+		dec: gob.NewDecoder(c),
+	}
+}
+
+func (s *session) error(err error) {
 	if s.errChan == nil {
 		return
 	}
@@ -50,14 +58,11 @@ func (s session) error(err error) {
 	}
 }
 
-func (s session) serve() {
+func (s *session) serve() {
 	defer func() {
 		if err := s.c.Close(); err != nil {
 			s.error(errors.Wrap(err, "fail to close client socket"))
 		}
 	}()
-	r, err := bufio.NewReader()
-	if err != nil {
-		// TODO return response and close socket
-	}
+	// r := bufio.NewReader(s.c)
 }
