@@ -13,7 +13,7 @@ type (
 	// Shard contains the shard info for opening
 	Shard struct {
 		RootDir string // root directory
-		Bit     uint   // number of bits that the shard index contains
+		Bit     uint8  // number of bits that the shard index contains
 		Index   int    // shard index
 	}
 	// OpenShardFunc callback
@@ -55,7 +55,7 @@ func Watch(dir string, open OpenShardFunc) error {
 			}
 			shardCount := int(1 << shardBit)
 			for shardIndex := 0; shardIndex < shardCount; shardIndex++ {
-				watcher.poll(&Shard{RootDir: dir, Bit: uint(shardBit), Index: shardIndex})
+				watcher.poll(&Shard{RootDir: dir, Bit: uint8(shardBit), Index: shardIndex})
 			}
 		}
 		if delay := WatchInterval - time.Since(t); delay > 0 {

@@ -29,6 +29,14 @@ type readSeekCloser interface {
 	io.Closer
 }
 
+func (m *Message) IsNull() bool {
+	return m.Offset == 0 &&
+		m.Timestamp.IsZero() &&
+		m.Type == 0 &&
+		m.Key == nil &&
+		m.Value == nil
+}
+
 // WriteMessage writes the message
 // buf should be at least 8 bytes and is used to avoid allocation
 func WriteMessage(w io.Writer, buf []byte, m *Message) (int64, error) {
@@ -91,7 +99,7 @@ func WriteMessage(w io.Writer, buf []byte, m *Message) (int64, error) {
 
 // ReadFrom reads a message from a io.ReadSeeker.
 // When an error occurs, it will rollback the seeker and then returns the original error.
-func (m *Message) ReadFrom(r io.ReadSeeker) (n int64, err error) {
+func (m *Message) ReadFrom(r io.Reader) (n int64, err error) {
 	cnt := int64(0) // total bytes read
 
 	nn, err := readUint64(r, &m.Offset)
@@ -188,7 +196,7 @@ func writeInt8(w io.Writer, buf []byte, i int8) (int, error) {
 	return w.Write(buf[:1])
 }
 
-func readInt8(r io.ReadSeeker, i *int8) (int, error) {
+func readInt8(r io.Reader, i *int8) (int, error) {
 	var b [1]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
@@ -203,7 +211,7 @@ func writeByte(w io.Writer, buf []byte, i byte) (int, error) {
 	return w.Write(buf[:1])
 }
 
-func readByte(r io.ReadSeeker, i *byte) (int, error) {
+func readByte(r io.Reader, i *byte) (int, error) {
 	var b [1]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
@@ -218,7 +226,7 @@ func writeInt64(w io.Writer, buf []byte, i int64) (int, error) {
 	return w.Write(buf[:8])
 }
 
-func readInt64(r io.ReadSeeker, i *int64) (int, error) {
+func readInt64(r io.Reader, i *int64) (int, error) {
 	var b [8]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
@@ -234,7 +242,7 @@ func writeUint64(w io.Writer, buf []byte, i uint64) (int, error) {
 	return w.Write(buf[:8])
 }
 
-func readUint64(r io.ReadSeeker, i *uint64) (int, error) {
+func readUint64(r io.Reader, i *uint64) (int, error) {
 	var b [8]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
@@ -250,7 +258,7 @@ func writeInt32(w io.Writer, buf []byte, i int32) (int, error) {
 	return w.Write(buf[:4])
 }
 
-func readInt32(r io.ReadSeeker, i *int32) (int, error) {
+func readInt32(r io.Reader, i *int32) (int, error) {
 	var b [4]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {
@@ -264,7 +272,7 @@ func writeUint32(w io.Writer, i uint32) (int, error) {
 	return w.Write([]byte{byte(i >> 24), byte(i >> 16), byte(i >> 8), byte(i)})
 }
 
-func readUint32(r io.ReadSeeker, i *uint32) (int, error) {
+func readUint32(r io.Reader, i *uint32) (int, error) {
 	var b [4]byte
 	n, err := io.ReadFull(r, b[:])
 	if err != nil {

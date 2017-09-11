@@ -14,8 +14,8 @@ type (
         Index   uint16
     }
 	Response struct {
-		ID  uint64
-		Err text
+		RequestID  uint64
+		Err        text
 	}
 )
 

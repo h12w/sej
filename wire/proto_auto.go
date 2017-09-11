@@ -556,7 +556,7 @@ func (o *Shard) UnmarshalBinary(data []byte) error {
 }
 
 type Response struct {
-	ID uint64
+	RequestID uint64
 
 	Err string
 }
@@ -566,7 +566,7 @@ type Response struct {
 func (o *Response) MarshalTo(buf []byte) int {
 	var i int
 
-	if x := o.ID; x >= 1<<49 {
+	if x := o.RequestID; x >= 1<<49 {
 		buf[i] = 0 | 0x80
 		intconv.PutUint64(buf[i+1:], x)
 		i += 9
@@ -606,7 +606,7 @@ func (o *Response) MarshalTo(buf []byte) int {
 func (o *Response) MarshalLen() (int, error) {
 	l := 1
 
-	if x := o.ID; x >= 1<<49 {
+	if x := o.RequestID; x >= 1<<49 {
 		l += 9
 	} else if x != 0 {
 		for l += 2; x >= 0x80; l++ {
@@ -674,7 +674,7 @@ func (o *Response) Unmarshal(data []byte) (int, error) {
 				x |= (b & 0x7f) << shift
 			}
 		}
-		o.ID = x
+		o.RequestID = x
 
 		header = data[i]
 		i++
@@ -684,7 +684,7 @@ func (o *Response) Unmarshal(data []byte) (int, error) {
 		if i >= len(data) {
 			goto eof
 		}
-		o.ID = intconv.Uint64(data[start:])
+		o.RequestID = intconv.Uint64(data[start:])
 		header = data[i]
 		i++
 	}

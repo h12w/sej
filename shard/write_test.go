@@ -5,7 +5,7 @@ import "testing"
 func TestShardDir(t *testing.T) {
 	root := "r"
 	for _, testcase := range []struct {
-		shardBit uint
+		shardBit uint8
 		index    int
 		dir      string
 	}{

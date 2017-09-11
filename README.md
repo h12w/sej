@@ -83,32 +83,32 @@ Offset
 Sharding
 --------
 
-### Sharding source directory
+### Source directory (presharding)
 
 ```
-[sharding-dir]/
-    [sharding-bit]/
+[presharding-dir]/
+    [shard-bit]/
         000/
         001/
         ......
 ```
 
-Each shard directory is a SEJ directory.
+Each sharding directory (000, 001, ...) is a SEJ directory.
 
-### Sharding destination directory
+### Destination directory (aggregated shards)
 
 ```
-[root-dir]/
+[aggregated-dir]/
     client1/
-        [client1-sharding-dir-1]/
-            [sharding-bit]/
+        [client1-presharding-dir-1]/
+            [shard-bit]/
                 001/
-        [client1-sharding-dir-2]/
-            [sharding-bit]/
+        [client1-presharding-dir-2]/
+            [shard-bit]/
                 001/
     client2/
-        [client2-sharding-dir-1]/
-            [sharding-bit]/
+        [client2-presharding-dir-1]/
+            [shard-bit]/
                 001/
     ......
 ```
