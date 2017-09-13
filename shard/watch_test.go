@@ -6,6 +6,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"h12.me/sej"
 )
 
 func TestWatch(t *testing.T) {
@@ -29,6 +31,7 @@ func TestWatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		w.Append(&sej.Message{Key: []byte("a")})
 		w.Close()
 	}
 	{
@@ -36,6 +39,8 @@ func TestWatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		w.Append(&sej.Message{Key: []byte("a")})
+		w.Append(&sej.Message{Key: []byte("b")})
 		w.Close()
 	}
 	time.Sleep(time.Millisecond)

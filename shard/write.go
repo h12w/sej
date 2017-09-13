@@ -3,6 +3,8 @@ package shard
 import (
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 
 	"h12.me/sej"
 )
@@ -10,9 +12,15 @@ import (
 type (
 	// Writer is a meta writer of multiple sharded sej.Writers
 	Writer struct {
-		ws        []*sej.Writer
+		ws        []sejWriterPtr
 		shard     HashFunc
 		shardMask uint16
+	}
+	sejWriterPtr struct {
+		dir         string
+		p           *sej.Writer
+		mu          sync.Mutex
+		initialized uint32
 	}
 	// HashFunc gives a shard index based on a message (probably its key)
 	HashFunc func(*sej.Message) uint16
@@ -30,33 +38,68 @@ func NewWriter(dir string, shardBit uint8, shardFunc HashFunc) (*Writer, error) 
 		shardFunc = dummyShardFunc // no sharding
 	}
 	writer := Writer{
-		ws:        make([]*sej.Writer, 1<<shardBit),
+		ws:        make([]sejWriterPtr, 1<<shardBit),
 		shard:     shardFunc,
 		shardMask: 1<<shardBit - 1,
 	}
 	for i := range writer.ws {
-		var err error
-		writer.ws[i], err = sej.NewWriter(Shard{RootDir: dir, Bit: shardBit, Index: i}.Dir())
-		if err != nil {
-			writer.Close()
-			return nil, err
+		writer.ws[i] = sejWriterPtr{
+			dir: Shard{RootDir: dir, Bit: shardBit, Index: i}.Dir(),
 		}
 	}
 	return &writer, nil
+}
+
+func (w *sejWriterPtr) get() *sej.Writer {
+	if atomic.LoadUint32(&w.initialized) == 1 {
+		return w.p
+	}
+	return nil
+}
+
+func (w *sejWriterPtr) getOrOpen() (*sej.Writer, error) {
+	if atomic.LoadUint32(&w.initialized) == 1 {
+		return w.p, nil
+	}
+
+	// slow path
+	w.mu.Lock()
+	if w.initialized == 1 {
+		w.mu.Unlock()
+		return w.p, nil
+	}
+	var err error
+	w.p, err = sej.NewWriter(w.dir)
+	if err != nil {
+		w.mu.Unlock()
+		return nil, err
+	}
+	atomic.StoreUint32(&w.initialized, 1)
+	w.mu.Unlock()
+
+	return w.p, nil
 }
 
 func dummyShardFunc(*sej.Message) uint16 { return 0 }
 
 // Append appends a message to a shard
 func (w *Writer) Append(msg *sej.Message) error {
-	return w.ws[int(w.shard(msg)&w.shardMask)].Append(msg)
+	writer, err := w.ws[int(w.shard(msg)&w.shardMask)].getOrOpen()
+	if err != nil {
+		return err
+	}
+	return writer.Append(msg)
 }
 
 // Flush flushes all shards
 func (w *Writer) Flush() error {
 	var es []error
-	for _, w := range w.ws {
-		if err := w.Flush(); err != nil {
+	for i := range w.ws {
+		writer := w.ws[i].get()
+		if writer == nil {
+			continue
+		}
+		if err := writer.Flush(); err != nil {
 			es = append(es, err)
 		}
 	}
@@ -70,11 +113,12 @@ func (w *Writer) Flush() error {
 func (w *Writer) Close() error {
 	var es []error
 	for i := range w.ws {
-		if w.ws[i] != nil {
-			if err := w.ws[i].Close(); err != nil {
-				es = append(es, err)
-			}
-			w.ws[i] = nil
+		writer := w.ws[i].get()
+		if writer == nil {
+			continue
+		}
+		if err := writer.Close(); err != nil {
+			es = append(es, err)
 		}
 	}
 	if len(es) > 0 {
