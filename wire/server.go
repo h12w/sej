@@ -8,11 +8,13 @@ import (
 
 	"github.com/pkg/errors"
 	"h12.me/sej"
+	"h12.me/sej/shard"
 )
 
 type (
 	Server struct {
 		Addr    string
+		Dir     string
 		Timeout time.Duration
 		ErrChan chan error
 		LogChan chan string
@@ -93,6 +95,11 @@ func (s *session) serve(rw io.ReadWriter) {
 }
 
 func (s *session) servePut(rw io.ReadWriter, req *Request) {
+	writer, err := s.getWriter(req.ClientID)
+	if err != nil {
+		s.error(errors.Wrap(err, "fail to get writer for client "+req.ClientID))
+		return
+	}
 	var msg sej.Message
 	for {
 		s.c.SetReadDeadline(time.Now().Add(s.timeout))
@@ -104,11 +111,17 @@ func (s *session) servePut(rw io.ReadWriter, req *Request) {
 		if msg.IsNull() {
 			break
 		}
+		if writer.
 		// TODO: write message to files
 	}
 	s.writeResp(rw, req, &Response{
 		RequestID: req.ID,
 	})
+}
+
+func (s *session) getWriter(req *Request) (*shard.Writer, error) {
+	// TODO
+	return nil, nil
 }
 
 func (s *session) serveError(rw io.ReadWriter, req *Request, err error) {
