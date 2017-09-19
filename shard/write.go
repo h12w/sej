@@ -1,11 +1,12 @@
 package shard
 
 import (
-	"errors"
 	"fmt"
+	"regexp"
 	"sync"
 	"sync/atomic"
 
+	"github.com/pkg/errors"
 	"h12.me/sej"
 )
 
@@ -26,11 +27,16 @@ type (
 	HashFunc func(*sej.Message) uint16
 )
 
+var rxPrefix = regexp.MustCompile(`[a-zA-Z0-9_-]*`)
+
 // NewWriter creates a meta writer for writing to multiple shards under $dir/jnl/shd/$shardMask
 // shardBit is the number of bits used in the shard index
 // the number of shards is 1<<shardBit
 // the shard mask is 1<<shardBit - 1
 func NewWriter(dir, prefix string, shardBit uint8, shardFunc HashFunc) (*Writer, error) {
+	if !rxPrefix.MatchString(prefix) {
+		return nil, errors.New("invalid prefix " + prefix)
+	}
 	if shardBit > 10 {
 		return nil, errors.New("shardBit should be no more than 10")
 	}

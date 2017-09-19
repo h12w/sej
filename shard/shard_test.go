@@ -1,33 +1,66 @@
 package shard
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestShardDir(t *testing.T) {
-	root := "r"
+	root := "/r"
 	for _, testcase := range []struct {
-		shardBit uint8
-		index    int
-		dir      string
+		shard Shard
+		dir   string
 	}{
 		{
-			shardBit: 0,
-			index:    0,
-			dir:      "r/blue",
+			shard: Shard{
+				Prefix: "",
+				Bit:    0,
+				Index:  0,
+			},
+			dir: "/r",
 		},
 		{
-			shardBit: 1,
-			index:    0x0a,
-			dir:      "r/blue.1.00a",
+			shard: Shard{
+				Prefix: "p",
+				Bit:    0,
+				Index:  0,
+			},
+			dir: "/r/p",
 		},
 		{
-			shardBit: 10,
-			index:    0x1ff,
-			dir:      "r/blue.a.1ff",
+			shard: Shard{
+				Prefix: "",
+				Bit:    1,
+				Index:  0x0a,
+			},
+			dir: "/r/1.00a",
+		},
+		{
+			shard: Shard{
+				Prefix: "p",
+				Bit:    1,
+				Index:  0x0a,
+			},
+			dir: "/r/p.1.00a",
+		},
+		{
+			shard: Shard{
+				Prefix: "p",
+				Bit:    10,
+				Index:  0x1ff,
+			},
+			dir: "/r/p.a.1ff",
 		},
 	} {
-		if dir := (Shard{Prefix: "blue", Bit: testcase.shardBit, Index: testcase.index}.Dir(root)); dir != testcase.dir {
+		if dir := (testcase.shard.Dir(root)); dir != testcase.dir {
 			t.Fatalf("expect %s got %s", testcase.dir, dir)
-
+		}
+		shard, err := parseShardDir(root, testcase.dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(shard, testcase.shard) {
+			t.Fatalf("expect %v got %v", testcase.shard, shard)
 		}
 	}
 }
