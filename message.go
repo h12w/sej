@@ -114,7 +114,7 @@ func (m *Message) ReadFrom(r io.Reader) (n int64, err error) {
 	if err != nil {
 		return cnt, err
 	}
-	m.Timestamp = time.Unix(0, unixNano)
+	m.Timestamp = time.Unix(0, unixNano).UTC()
 
 	nn, err = readByte(r, &m.Type)
 	cnt += int64(nn)

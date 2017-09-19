@@ -16,7 +16,7 @@ const (
 func TestMarshalUnmarshal(t *testing.T) {
 	msg := Message{
 		Offset:    42,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().UTC().Truncate(time.Nanosecond),
 		Type:      43,
 		Key:       []byte("a"),
 		Value:     []byte("b"),
@@ -35,7 +35,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 		t.Fatal("size mismatch")
 	}
 	if !reflect.DeepEqual(result, msg) {
-		t.Fatalf("expect %v got %v", msg, result)
+		t.Fatalf("expect\n%v\ngot\n%v", msg, result)
 	}
 }
 
