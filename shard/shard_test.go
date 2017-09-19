@@ -12,20 +12,20 @@ func TestShardDir(t *testing.T) {
 		{
 			shardBit: 0,
 			index:    0,
-			dir:      "r",
+			dir:      "r/blue",
 		},
 		{
 			shardBit: 1,
 			index:    0x0a,
-			dir:      "r/shd/1/00a",
+			dir:      "r/blue.1.00a",
 		},
 		{
 			shardBit: 10,
 			index:    0x1ff,
-			dir:      "r/shd/a/1ff",
+			dir:      "r/blue.a.1ff",
 		},
 	} {
-		if dir := (Shard{RootDir: root, Bit: testcase.shardBit, Index: testcase.index}.Dir()); dir != testcase.dir {
+		if dir := (Shard{Prefix: "blue", Bit: testcase.shardBit, Index: testcase.index}.Dir(root)); dir != testcase.dir {
 			t.Fatalf("expect %s got %s", testcase.dir, dir)
 
 		}

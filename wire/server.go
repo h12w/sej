@@ -8,7 +8,6 @@ import (
 
 	"github.com/pkg/errors"
 	"h12.me/sej"
-	"h12.me/sej/shard"
 )
 
 type (
@@ -95,7 +94,7 @@ func (s *session) serve(rw io.ReadWriter) {
 }
 
 func (s *session) servePut(rw io.ReadWriter, req *Request) {
-	writer, err := s.getWriter(req.ClientID)
+	writer, err := s.getWriter(req)
 	if err != nil {
 		s.error(errors.Wrap(err, "fail to get writer for client "+req.ClientID))
 		return
@@ -111,15 +110,16 @@ func (s *session) servePut(rw io.ReadWriter, req *Request) {
 		if msg.IsNull() {
 			break
 		}
-		if writer.
 		// TODO: write message to files
+		//if writer.
+		_ = writer
 	}
 	s.writeResp(rw, req, &Response{
 		RequestID: req.ID,
 	})
 }
 
-func (s *session) getWriter(req *Request) (*shard.Writer, error) {
+func (s *session) getWriter(req *Request) (*sej.Writer, error) {
 	// TODO
 	return nil, nil
 }
@@ -138,3 +138,32 @@ func (s *session) writeResp(w io.Writer, req *Request, resp *Response) {
 		s.error(errors.Wrap(err, "fail to write response to "+req.ClientID))
 	}
 }
+
+/*
+type writer struct {
+	dir string
+	m   map[string]*shard.Writer
+	mu  sync.Mutex
+}
+
+func newWriter(dir string) *writer {
+	return &writer{
+		dir: dir,
+		m:   make(map[string]*shard.Writer),
+	}
+}
+
+func (w *writer) sejWriter(req *Request) (*sej.Writer, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	shardWriter, ok := w.m[req.ClientID]
+	if !ok {
+		var err error
+		shardWriter, err = shard.NewWriter(path.Join(w.Dir, req.ClientID))
+		if err != nil {
+			return nil, err
+		}
+		w.m[req.ClientID] = shardWriter
+	}
+}
+*/

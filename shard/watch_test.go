@@ -12,13 +12,14 @@ import (
 
 func TestWatch(t *testing.T) {
 	dir := newTestPath(t)
+	prefix := "blue"
 
 	WatchInterval = time.Millisecond
-	shardChan := make(chan Shard)
+	shardChan := make(chan string)
 	go func() {
-		if err := Watch(dir, func(shard *Shard) {
+		if err := Watch(dir, func(dir string) {
 			go func() {
-				shardChan <- *shard
+				shardChan <- dir
 			}()
 		}); err != nil {
 			t.Fatal(err)
@@ -27,7 +28,7 @@ func TestWatch(t *testing.T) {
 	runtime.Gosched()
 
 	{
-		w, err := NewWriter(dir, 0, nil)
+		w, err := NewWriter(dir, prefix, 0, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -35,7 +36,7 @@ func TestWatch(t *testing.T) {
 		w.Close()
 	}
 	{
-		w, err := NewWriter(dir, 1, shardFNV)
+		w, err := NewWriter(dir, prefix, 1, shardFNV)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,7 +46,7 @@ func TestWatch(t *testing.T) {
 	}
 	time.Sleep(time.Millisecond)
 
-	var shards []Shard
+	var shards []string
 	for i := 0; i < 10; i++ {
 		select {
 		case shard := <-shardChan:
@@ -53,11 +54,11 @@ func TestWatch(t *testing.T) {
 		default:
 		}
 	}
-	sort.Sort(ByDir(shards))
+	sort.Strings(shards)
 	expected := "[" +
-		`{` + dir + ` 0 0} ` +
-		`{` + dir + ` 1 0} ` +
-		`{` + dir + ` 1 1}` +
+		dir + `/blue ` +
+		dir + `/blue.1.000 ` +
+		dir + `/blue.1.001` +
 		"]"
 	actual := fmt.Sprint(shards)
 	if expected != actual {
@@ -69,4 +70,4 @@ type ByDir []Shard
 
 func (a ByDir) Len() int           { return len(a) }
 func (a ByDir) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByDir) Less(i, j int) bool { return a[i].Dir() < a[j].Dir() }
+func (a ByDir) Less(i, j int) bool { return a[i].Dir("a") < a[j].Dir("a") }

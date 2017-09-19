@@ -1,62 +1,44 @@
 package shard
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type (
-	// Shard contains the shard info for opening
-	Shard struct {
-		RootDir string // root directory
-		Bit     uint8  // number of bits that the shard index contains
-		Index   int    // shard index
-	}
 	// OpenShardFunc callback
-	OpenShardFunc func(*Shard)
+	OpenShardFunc func(string)
 )
-
-func (s Shard) Dir() string {
-	if s.Bit == 0 {
-		return s.RootDir
-	}
-	return path.Join(s.RootDir, "shd", fmt.Sprintf("%x", s.Bit), fmt.Sprintf("%03x", s.Index))
-}
 
 // WatchInterval defines how long the watch polls for a new shard
 var WatchInterval = time.Minute
 
 // Watch watches the directory and calls open only once for each shard
 func Watch(dir string, open OpenShardFunc) error {
-	watcher := newShardWatcher(dir, open)
+	watcher := newShardWatcher(open)
 	t := time.Now().UTC()
 	for {
 		if !dirExists(dir) {
 			time.Sleep(WatchInterval)
 			continue
 		}
-		watcher.poll(&Shard{RootDir: dir})
-		if !dirExists(path.Join(dir, "shd")) {
-			time.Sleep(WatchInterval)
-			continue
-		}
-		maskDirs, err := filepath.Glob(path.Join(dir, "shd", "*"))
+		watcher.poll(dir)
+		maskDirs, err := filepath.Glob(path.Join(dir, "*"))
 		if err != nil {
 			return err
 		}
 		for _, maskDir := range maskDirs {
-			shardBit, err := strconv.ParseUint(path.Base(maskDir), 16, 8)
+			shard, err := parseShardDir(maskDir)
 			if err != nil {
 				return err
 			}
-			shardCount := int(1 << shardBit)
-			for shardIndex := 0; shardIndex < shardCount; shardIndex++ {
-				watcher.poll(&Shard{RootDir: dir, Bit: uint8(shardBit), Index: shardIndex})
-			}
+			watcher.poll(shard.Dir(dir))
 		}
 		if delay := WatchInterval - time.Since(t); delay > 0 {
 			time.Sleep(delay)
@@ -65,20 +47,44 @@ func Watch(dir string, open OpenShardFunc) error {
 	}
 }
 
+func parseShardDir(dir string) (Shard, error) {
+	base := path.Base(dir)
+	parts := strings.Split(base, ".")
+	switch len(parts) {
+	case 1:
+		return Shard{Prefix: parts[0]}, nil
+	case 3:
+		shardBit, err := strconv.ParseUint(parts[1], 16, 8)
+		if err != nil {
+			return Shard{}, errors.Wrap(err, "fail to parse shard bit")
+		}
+		shardIndex, err := strconv.ParseUint(parts[2], 16, 16)
+		if err != nil {
+			return Shard{}, errors.Wrap(err, "fail to parse shard index")
+		}
+		return Shard{
+			Prefix: parts[0],
+			Bit:    uint8(shardBit),
+			Index:  int(shardIndex),
+		}, nil
+	default:
+		return Shard{}, errors.New("fail to parse shard dir " + dir)
+	}
+}
+
 type shardWatcher struct {
 	dirs map[string]bool
 	open OpenShardFunc
 }
 
-func newShardWatcher(dir string, open OpenShardFunc) shardWatcher {
+func newShardWatcher(open OpenShardFunc) shardWatcher {
 	return shardWatcher{
 		dirs: make(map[string]bool),
 		open: open,
 	}
 }
 
-func (w *shardWatcher) poll(shard *Shard) {
-	dir := shard.Dir()
+func (w *shardWatcher) poll(dir string) {
 	if w.dirs[dir] {
 		return
 	}
@@ -88,7 +94,7 @@ func (w *shardWatcher) poll(shard *Shard) {
 
 	// set the guard and go
 	w.dirs[dir] = true
-	w.open(shard)
+	w.open(dir)
 }
 
 func dirExists(dir string) bool {

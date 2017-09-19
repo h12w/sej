@@ -83,32 +83,25 @@ Offset
 Sharding
 --------
 
-### Source directory (presharding)
-
 ```
-[presharding-dir]/
-    [shard-bit]/
-        000/
-        001/
-        ......
-```
-
-Each sharding directory (000, 001, ...) is a SEJ directory.
-
-### Destination directory (aggregated shards)
-
-```
-[aggregated-dir]/
-    client1/
-        [client1-presharding-dir-1]/
-            [shard-bit]/
-                001/
-        [client1-presharding-dir-2]/
-            [shard-bit]/
-                001/
-    client2/
-        [client2-presharding-dir-1]/
-            [shard-bit]/
-                001/
+[root-dir]/
+    [dir-prefix].[shard-bit].[shard-index]/
     ......
 ```
+
+* shard-bit: 1, 2, ..., 9, a
+* shard-index: 000, 001, ..., 3ff
+
+Each sub directory is a SEJ directory.
+
+
+Hub
+---
+
+```
+[root-dir]/
+    [client-id].[client-dir]/
+    ......
+```
+
+client-dir is the SEJ directory name belonging to a client.

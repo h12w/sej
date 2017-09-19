@@ -30,7 +30,7 @@ type (
 // shardBit is the number of bits used in the shard index
 // the number of shards is 1<<shardBit
 // the shard mask is 1<<shardBit - 1
-func NewWriter(dir string, shardBit uint8, shardFunc HashFunc) (*Writer, error) {
+func NewWriter(dir, prefix string, shardBit uint8, shardFunc HashFunc) (*Writer, error) {
 	if shardBit > 10 {
 		return nil, errors.New("shardBit should be no more than 10")
 	}
@@ -44,7 +44,7 @@ func NewWriter(dir string, shardBit uint8, shardFunc HashFunc) (*Writer, error) 
 	}
 	for i := range writer.ws {
 		writer.ws[i] = sejWriterPtr{
-			dir: Shard{RootDir: dir, Bit: shardBit, Index: i}.Dir(),
+			dir: Shard{Prefix: prefix, Bit: shardBit, Index: i}.Dir(dir),
 		}
 	}
 	return &writer, nil
