@@ -2,7 +2,6 @@ package shard
 
 import (
 	"fmt"
-	"regexp"
 	"sync"
 	"sync/atomic"
 
@@ -27,30 +26,25 @@ type (
 	HashFunc func(*sej.Message) uint16
 )
 
-var rxPrefix = regexp.MustCompile(`[a-zA-Z0-9_-]*`)
-
 // NewWriter creates a meta writer for writing to multiple shards under $dir/jnl/shd/$shardMask
 // shardBit is the number of bits used in the shard index
 // the number of shards is 1<<shardBit
 // the shard mask is 1<<shardBit - 1
-func NewWriter(dir, prefix string, shardBit uint8, shardFunc HashFunc) (*Writer, error) {
-	if !rxPrefix.MatchString(prefix) {
-		return nil, errors.New("invalid prefix " + prefix)
-	}
-	if shardBit > 10 {
-		return nil, errors.New("shardBit should be no more than 10")
+func NewWriter(shardPath Path, shardFunc HashFunc) (*Writer, error) {
+	if err := shardPath.check(); err != nil {
+		return nil, err
 	}
 	if shardFunc == nil {
 		shardFunc = dummyShardFunc // no sharding
 	}
 	writer := Writer{
-		ws:        make([]sejWriterPtr, 1<<shardBit),
+		ws:        make([]sejWriterPtr, shardPath.shardCount()),
 		shard:     shardFunc,
-		shardMask: 1<<shardBit - 1,
+		shardMask: shardPath.shardMask(),
 	}
 	for i := range writer.ws {
 		writer.ws[i] = sejWriterPtr{
-			dir: Shard{Prefix: prefix, Bit: shardBit, Index: i}.Dir(dir),
+			dir: shardPath.dir(i),
 		}
 	}
 	return &writer, nil
@@ -101,7 +95,7 @@ func (w *Writer) Append(msg *sej.Message) error {
 	return writer.Append(msg)
 }
 
-// Flush flushes all shards
+// Flush flushes all opened shards
 func (w *Writer) Flush() error {
 	var es []error
 	for i := range w.ws {
@@ -119,7 +113,7 @@ func (w *Writer) Flush() error {
 	return nil
 }
 
-// Close closes all shards
+// Close closes all opened shards
 func (w *Writer) Close() error {
 	var es []error
 	for i := range w.ws {

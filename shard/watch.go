@@ -34,7 +34,7 @@ func Watch(rootDir string, open OpenShardFunc) error {
 			if err != nil {
 				return err
 			}
-			watcher.poll(shard.Dir(rootDir))
+			watcher.poll(shard.Dir())
 		}
 		if delay := WatchInterval - time.Since(t); delay > 0 {
 			time.Sleep(delay)

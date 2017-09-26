@@ -46,7 +46,7 @@ type Request struct {
 
 	ClientID string
 
-	Shard *Shard
+	JournalDir string
 
 	Offset uint64
 }
@@ -93,10 +93,18 @@ func (o *Request) MarshalTo(buf []byte) int {
 		i += copy(buf[i:], o.ClientID)
 	}
 
-	if v := o.Shard; v != nil {
+	if l := len(o.JournalDir); l != 0 {
 		buf[i] = 3
 		i++
-		i += v.MarshalTo(buf[i:])
+		x := uint(l)
+		for x >= 0x80 {
+			buf[i] = byte(x | 0x80)
+			x >>= 7
+			i++
+		}
+		buf[i] = byte(x)
+		i++
+		i += copy(buf[i:], o.JournalDir)
 	}
 
 	if x := o.Offset; x >= 1<<49 {
@@ -146,12 +154,13 @@ func (o *Request) MarshalLen() (int, error) {
 		}
 	}
 
-	if v := o.Shard; v != nil {
-		vl, err := v.MarshalLen()
-		if err != nil {
-			return 0, err
+	if x := len(o.JournalDir); x != 0 {
+		if x > ColferSizeMax {
+			return 0, ColferMax(fmt.Sprintf("colfer: field wire.Request.JournalDir exceeds %d bytes", ColferSizeMax))
 		}
-		l += vl + 1
+		for l += x + 2; x >= 0x80; l++ {
+			x >>= 7
+		}
 	}
 
 	if x := o.Offset; x >= 1<<49 {
@@ -279,19 +288,40 @@ func (o *Request) Unmarshal(data []byte) (int, error) {
 	}
 
 	if header == 3 {
-		o.Shard = new(Shard)
-		n, err := o.Shard.Unmarshal(data[i:])
-		if err != nil {
-			if err == io.EOF && len(data) >= ColferSizeMax {
-				return 0, ColferMax(fmt.Sprintf("colfer: wire.Request size exceeds %d bytes", ColferSizeMax))
-			}
-			return 0, err
-		}
-		i += n
-
 		if i >= len(data) {
 			goto eof
 		}
+		x := uint(data[i])
+		i++
+
+		if x >= 0x80 {
+			x &= 0x7f
+			for shift := uint(7); ; shift += 7 {
+				if i >= len(data) {
+					goto eof
+				}
+				b := uint(data[i])
+				i++
+
+				if b < 0x80 {
+					x |= b << shift
+					break
+				}
+				x |= (b & 0x7f) << shift
+			}
+		}
+
+		if x > uint(ColferSizeMax) {
+			return 0, ColferMax(fmt.Sprintf("colfer: wire.Request.JournalDir size %d exceeds %d bytes", x, ColferSizeMax))
+		}
+
+		start := i
+		i += int(x)
+		if i >= len(data) {
+			goto eof
+		}
+		o.JournalDir = string(data[start:i])
+
 		header = data[i]
 		i++
 	}
@@ -351,203 +381,6 @@ eof:
 // UnmarshalBinary decodes data as Colfer conform encoding.BinaryUnmarshaler.
 // The error return options are io.EOF, wire.ColferError, wire.ColferTail and wire.ColferMax.
 func (o *Request) UnmarshalBinary(data []byte) error {
-	i, err := o.Unmarshal(data)
-	if i < len(data) && err == nil {
-		return ColferTail(i)
-	}
-	return err
-}
-
-type Shard struct {
-	RootDir string
-
-	Bit uint8
-
-	Index uint16
-}
-
-// MarshalTo encodes o as Colfer into buf and returns the number of bytes written.
-// If the buffer is too small, MarshalTo will panic.
-func (o *Shard) MarshalTo(buf []byte) int {
-	var i int
-
-	if l := len(o.RootDir); l != 0 {
-		buf[i] = 0
-		i++
-		x := uint(l)
-		for x >= 0x80 {
-			buf[i] = byte(x | 0x80)
-			x >>= 7
-			i++
-		}
-		buf[i] = byte(x)
-		i++
-		i += copy(buf[i:], o.RootDir)
-	}
-
-	if x := o.Bit; x != 0 {
-		buf[i] = 1
-		i++
-		buf[i] = x
-		i++
-	}
-
-	if x := o.Index; x >= 1<<8 {
-		buf[i] = 2
-		i++
-		buf[i] = byte(x >> 8)
-		i++
-		buf[i] = byte(x)
-		i++
-	} else if x != 0 {
-		buf[i] = 2 | 0x80
-		i++
-		buf[i] = byte(x)
-		i++
-	}
-
-	buf[i] = 0x7f
-	i++
-	return i
-}
-
-// MarshalLen returns the Colfer serial byte size.
-// The error return option is wire.ColferMax.
-func (o *Shard) MarshalLen() (int, error) {
-	l := 1
-
-	if x := len(o.RootDir); x != 0 {
-		if x > ColferSizeMax {
-			return 0, ColferMax(fmt.Sprintf("colfer: field wire.Shard.RootDir exceeds %d bytes", ColferSizeMax))
-		}
-		for l += x + 2; x >= 0x80; l++ {
-			x >>= 7
-		}
-	}
-
-	if x := o.Bit; x != 0 {
-		l += 2
-	}
-
-	if x := o.Index; x >= 1<<8 {
-		l += 3
-	} else if x != 0 {
-		l += 2
-	}
-
-	if l > ColferSizeMax {
-		return l, ColferMax(fmt.Sprintf("colfer: struct wire.Shard exceeds %d bytes", ColferSizeMax))
-	}
-	return l, nil
-}
-
-// MarshalBinary encodes o as Colfer conform encoding.BinaryMarshaler.
-// The error return option is wire.ColferMax.
-func (o *Shard) MarshalBinary() (data []byte, err error) {
-	l, err := o.MarshalLen()
-	if err != nil {
-		return nil, err
-	}
-	data = make([]byte, l)
-	o.MarshalTo(data)
-	return data, nil
-}
-
-// Unmarshal decodes data as Colfer and returns the number of bytes read.
-// The error return options are io.EOF, wire.ColferError and wire.ColferMax.
-func (o *Shard) Unmarshal(data []byte) (int, error) {
-	if len(data) == 0 {
-		return 0, io.EOF
-	}
-	header := data[0]
-	i := 1
-
-	if header == 0 {
-		if i >= len(data) {
-			goto eof
-		}
-		x := uint(data[i])
-		i++
-
-		if x >= 0x80 {
-			x &= 0x7f
-			for shift := uint(7); ; shift += 7 {
-				if i >= len(data) {
-					goto eof
-				}
-				b := uint(data[i])
-				i++
-
-				if b < 0x80 {
-					x |= b << shift
-					break
-				}
-				x |= (b & 0x7f) << shift
-			}
-		}
-
-		if x > uint(ColferSizeMax) {
-			return 0, ColferMax(fmt.Sprintf("colfer: wire.Shard.RootDir size %d exceeds %d bytes", x, ColferSizeMax))
-		}
-
-		start := i
-		i += int(x)
-		if i >= len(data) {
-			goto eof
-		}
-		o.RootDir = string(data[start:i])
-
-		header = data[i]
-		i++
-	}
-
-	if header == 1 {
-		start := i
-		i++
-		if i >= len(data) {
-			goto eof
-		}
-		o.Bit = data[start]
-		header = data[i]
-		i++
-	}
-
-	if header == 2 {
-		start := i
-		i += 2
-		if i >= len(data) {
-			goto eof
-		}
-		o.Index = intconv.Uint16(data[start:])
-		header = data[i]
-		i++
-	} else if header == 2|0x80 {
-		start := i
-		i++
-		if i >= len(data) {
-			goto eof
-		}
-		o.Index = uint16(data[start])
-		header = data[i]
-		i++
-	}
-
-	if header != 0x7f {
-		return 0, ColferError(i - 1)
-	}
-	if i < ColferSizeMax {
-		return i, nil
-	}
-eof:
-	if i >= ColferSizeMax {
-		return 0, ColferMax(fmt.Sprintf("colfer: struct wire.Shard size exceeds %d bytes", ColferSizeMax))
-	}
-	return 0, io.EOF
-}
-
-// UnmarshalBinary decodes data as Colfer conform encoding.BinaryUnmarshaler.
-// The error return options are io.EOF, wire.ColferError, wire.ColferTail and wire.ColferMax.
-func (o *Shard) UnmarshalBinary(data []byte) error {
 	i, err := o.Unmarshal(data)
 	if i < len(data) && err == nil {
 		return ColferTail(i)

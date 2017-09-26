@@ -84,15 +84,18 @@ Sharding
 --------
 
 ```
-[root-dir]/
-    [dir-prefix].[shard-bit].[shard-index]/
+[root-path]/
+    [shard0]/
+    [shard1]/
     ......
 ```
 
+Each shard directory is a SEJ directory with a name in the form of `[prefix].[shard-bit].[shard-index]`.
+
+* prefix must satisfy [a-zA-Z0-9_\-]*
+* when prefix is empty, `[prefix].` including the dot is omitted
 * shard-bit: 1, 2, ..., 9, a
 * shard-index: 000, 001, ..., 3ff
-
-Each sub directory is a SEJ directory.
 
 
 Hub
@@ -100,7 +103,8 @@ Hub
 
 ```
 [root-dir]/
-    [client-id].[client-dir]/
+    [client-id0].[shard0]/
+    [client-id1].[shard0]/
     ......
 ```
 

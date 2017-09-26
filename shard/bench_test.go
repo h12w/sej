@@ -12,7 +12,7 @@ import (
 
 func BenchmarkAppend(b *testing.B) {
 	path := newTestPath(b)
-	w, err := NewWriter(path, "blue", 8, shardFNV)
+	w, err := NewWriter(Path{path, "blue", 8}, shardFNV)
 	if err != nil {
 		b.Fatal(err)
 	}

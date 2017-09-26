@@ -4,33 +4,64 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
 )
 
-// Shard contains the shard info for opening
-type Shard struct {
-	Prefix string // root directory
-	Bit    uint8  // number of bits that the shard index contains
-	Index  int    // shard index
+// shard contains the shard info for opening
+type (
+	Path struct {
+		Root     string
+		Prefix   string
+		ShardBit uint8
+	}
+	shard struct {
+		Path
+		Index int
+	}
+)
+
+var rxPrefix = regexp.MustCompile(`[a-zA-Z0-9_\-]*`)
+
+func (p *Path) check() error {
+	if !rxPrefix.MatchString(p.Prefix) {
+		return errors.New("invalid prefix " + p.Prefix)
+	}
+	if p.ShardBit > 10 {
+		return errors.New("shardBit should be no more than 10")
+	}
+	return nil
 }
 
-func (s Shard) Dir(rootDir string) string {
+func (p *Path) shardCount() int {
+	return 1 << p.ShardBit
+}
+
+func (p *Path) shardMask() uint16 {
+	return 1<<p.ShardBit - 1
+}
+
+func (p *Path) dir(shardIndex int) string {
+	return shard{Path: *p, Index: shardIndex}.Dir()
+}
+
+func (s shard) Dir() string {
+	if s.ShardBit == 0 {
+		return path.Join(s.Root, s.Prefix)
+	}
 	prefix := s.Prefix
-	if prefix != "" && s.Bit != 0 {
+	if s.Prefix != "" {
 		prefix += "."
 	}
-	if s.Bit == 0 {
-		return path.Join(rootDir, prefix)
-	}
-	return path.Join(rootDir, prefix+fmt.Sprintf("%x.%03x", s.Bit, s.Index))
+	return path.Join(s.Root, prefix+fmt.Sprintf("%x.%03x", s.ShardBit, s.Index))
 }
 
-func parseShardDir(rootDir, shardDir string) (Shard, error) {
-	dir := strings.TrimPrefix(shardDir, rootDir)
-	dir = strings.Trim(dir, string(filepath.Separator))
+func parseShardDir(rootDir, dir string) (shard, error) {
+	dir = strings.TrimPrefix(dir, rootDir)
+	dir = strings.TrimPrefix(dir, string(filepath.Separator))
 	parts := strings.Split(dir, ".")
 	prefix := ""
 	bitStr, indexStr := "0", "0"
@@ -43,21 +74,24 @@ func parseShardDir(rootDir, shardDir string) (Shard, error) {
 		prefix = parts[0]
 		bitStr, indexStr = parts[1], parts[2]
 	default:
-		return Shard{}, errors.New("fail to parse shard dir " + dir)
+		return shard{}, errors.New("fail to parse shard dir " + dir)
 	}
 
 	shardBit, err := strconv.ParseUint(bitStr, 16, 8)
 	if err != nil {
-		return Shard{}, errors.Wrap(err, "fail to parse shard bit")
+		return shard{}, errors.Wrap(err, "fail to parse shard bit")
 	}
 	shardIndex, err := strconv.ParseUint(indexStr, 16, 16)
 	if err != nil {
-		return Shard{}, errors.Wrap(err, "fail to parse shard index")
+		return shard{}, errors.Wrap(err, "fail to parse shard index")
 	}
-	return Shard{
-		Prefix: prefix,
-		Bit:    uint8(shardBit),
-		Index:  int(shardIndex),
-	}, nil
-
+	s := shard{
+		Path: Path{
+			Root:     rootDir,
+			Prefix:   prefix,
+			ShardBit: uint8(shardBit),
+		},
+		Index: int(shardIndex),
+	}
+	return s, s.check()
 }

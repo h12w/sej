@@ -28,7 +28,7 @@ func TestWatch(t *testing.T) {
 	runtime.Gosched()
 
 	{
-		w, err := NewWriter(dir, prefix, 0, nil)
+		w, err := NewWriter(Path{dir, prefix, 0}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -36,7 +36,7 @@ func TestWatch(t *testing.T) {
 		w.Close()
 	}
 	{
-		w, err := NewWriter(dir, prefix, 1, shardFNV)
+		w, err := NewWriter(Path{dir, prefix, 1}, shardFNV)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,8 +66,8 @@ func TestWatch(t *testing.T) {
 	}
 }
 
-type ByDir []Shard
+type ByDir []shard
 
 func (a ByDir) Len() int           { return len(a) }
 func (a ByDir) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByDir) Less(i, j int) bool { return a[i].Dir("a") < a[j].Dir("a") }
+func (a ByDir) Less(i, j int) bool { return a[i].Dir() < a[j].Dir() }

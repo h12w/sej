@@ -6,56 +6,81 @@ import (
 )
 
 func TestShardDir(t *testing.T) {
-	root := "/r"
 	for _, testcase := range []struct {
-		shard Shard
+		shard shard
 		dir   string
 	}{
 		{
-			shard: Shard{
-				Prefix: "",
-				Bit:    0,
-				Index:  0,
+			shard: shard{
+				Path: Path{
+					Root:     "",
+					Prefix:   "",
+					ShardBit: 0,
+				},
+				Index: 0,
+			},
+			dir: "",
+		},
+		{
+			shard: shard{
+				Path: Path{
+					Root:     "/r",
+					Prefix:   "",
+					ShardBit: 0,
+				},
+				Index: 0,
 			},
 			dir: "/r",
 		},
 		{
-			shard: Shard{
-				Prefix: "p",
-				Bit:    0,
-				Index:  0,
+			shard: shard{
+				Path: Path{
+					Root:     "/r",
+					Prefix:   "p",
+					ShardBit: 0,
+				},
+				Index: 0,
 			},
 			dir: "/r/p",
 		},
 		{
-			shard: Shard{
-				Prefix: "",
-				Bit:    1,
-				Index:  0x0a,
-			},
-			dir: "/r/1.00a",
-		},
-		{
-			shard: Shard{
-				Prefix: "p",
-				Bit:    1,
-				Index:  0x0a,
+			shard: shard{
+				Path: Path{
+					Root:     "/r",
+					Prefix:   "p",
+					ShardBit: 1,
+				},
+				Index: 0x0a,
 			},
 			dir: "/r/p.1.00a",
 		},
 		{
-			shard: Shard{
-				Prefix: "p",
-				Bit:    10,
-				Index:  0x1ff,
+			shard: shard{
+				Path: Path{
+					Root:     "/r",
+					Prefix:   "p",
+					ShardBit: 10,
+				},
+				Index: 0x1ff,
 			},
 			dir: "/r/p.a.1ff",
 		},
+		{
+			shard: shard{
+				Path: Path{
+					Root:     "/r",
+					Prefix:   "",
+					ShardBit: 1,
+				},
+				Index: 0x0a,
+			},
+			dir: "/r/1.00a",
+		},
 	} {
-		if dir := (testcase.shard.Dir(root)); dir != testcase.dir {
+		if dir := (testcase.shard.Dir()); dir != testcase.dir {
 			t.Fatalf("expect %s got %s", testcase.dir, dir)
 		}
-		shard, err := parseShardDir(root, testcase.dir)
+		shard, err := parseShardDir(testcase.shard.Path.Root, testcase.dir)
 		if err != nil {
 			t.Fatal(err)
 		}

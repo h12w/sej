@@ -2,17 +2,12 @@ package wire
 
 type (
 	Request struct {
-		ID       uint64
-		Type     uint8
-		ClientID text
-		Shard    Shard
-		Offset   uint64
+		ID         uint64
+		Type       uint8
+		ClientID   text
+		JournalDir text
+		Offset     uint64
 	}
-    Shard struct {
-        RootDir text
-        Bit     uint8
-        Index   uint16
-    }
 	Response struct {
 		RequestID  uint64
 		Err        text

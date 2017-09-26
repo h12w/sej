@@ -8,14 +8,10 @@ import (
 
 func TestMarshal(t *testing.T) {
 	req := Request{
-		ID:       1,
-		Type:     2,
-		ClientID: "b",
-		Shard: &Shard{
-			RootDir: "c",
-			Bit:     3,
-			Index:   4,
-		},
+		ID:         1,
+		Type:       2,
+		ClientID:   "b",
+		JournalDir: "c.3.4",
 	}
 	w := new(bytes.Buffer)
 	if _, err := req.WriteTo(w); err != nil {
