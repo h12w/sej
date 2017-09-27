@@ -5,11 +5,12 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
+
+	"h12.me/sej/sejtest"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
+func TestMain(m *testing.M) {
+	sejtest.TestMain(m)
 }
 
 func writeTestMessages(t testing.TB, w *Writer, messages ...string) {
@@ -96,7 +97,7 @@ func (fs *JournalDir) sizes(t *testing.T) []int {
 }
 
 func newTestPath(t testing.TB) string {
-	path := testFilePrefix + strconv.Itoa(rand.Int())
+	path := sejtest.DirPrefix + strconv.Itoa(rand.Int())
 	if err := os.Mkdir(path, 0755); err != nil {
 		t.Fatal(err)
 	}

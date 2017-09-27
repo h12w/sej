@@ -4,9 +4,10 @@ package hub
 
 import (
 	"encoding"
-	"errors"
 	"io"
 	"math"
+
+	"github.com/pkg/errors"
 )
 
 type (
@@ -40,7 +41,7 @@ func writeTo256(w io.Writer, o colferMarshaler) (int64, error) {
 	data[0] = uint8(l)
 	o.MarshalTo(data[1:])
 	nn, err := w.Write(data)
-	return int64(nn), err
+	return int64(nn), errors.Wrap(err, "fail to write data")
 }
 
 func readFrom256(r io.Reader, o colferUnmarshaler) (n int64, err error) {
@@ -48,13 +49,13 @@ func readFrom256(r io.Reader, o colferUnmarshaler) (n int64, err error) {
 	nn, err := r.Read(l[:])
 	n += int64(nn)
 	if err != nil {
-		return n, err
+		return n, errors.Wrap(err, "fail to read data")
 	}
 	buf := make([]byte, int(l[0]))
 	nn, err = io.ReadAtLeast(r, buf, int(l[0]))
 	n += int64(nn)
 	if err != nil {
-		return n, err
+		return n, errors.Wrap(err, "fail to read data")
 	}
 	return n, o.UnmarshalBinary(buf)
 }

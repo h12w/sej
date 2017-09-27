@@ -1,17 +1,11 @@
 package shard
 
 import (
-	"math/rand"
-	"os"
-	"strconv"
 	"testing"
+
+	"h12.me/sej/sejtest"
 )
 
- 
-func newTestPath(t testing.TB) string {
-	path := testFilePrefix + strconv.Itoa(rand.Int())
-	if err := os.Mkdir(path, 0755); err != nil {
-		t.Fatal(err)
-	}
-	return path
+func TestMain(m *testing.M) {
+	sejtest.TestMain(m)
 }
