@@ -1,23 +1,20 @@
-package shard
+package sej
 
 import (
 	"fmt"
+	"path"
 	"runtime"
 	"sort"
 	"testing"
 	"time"
-
-	"h12.me/sej"
 )
 
 func TestWatch(t *testing.T) {
 	dir := newTestPath(t)
-	prefix := "blue"
 
-	WatchInterval = time.Millisecond
 	shardChan := make(chan string)
 	go func() {
-		if err := Watch(dir, func(dir string) {
+		if err := WatchRootDir(dir, time.Millisecond, func(dir string) {
 			go func() {
 				shardChan <- dir
 			}()
@@ -28,20 +25,29 @@ func TestWatch(t *testing.T) {
 	runtime.Gosched()
 
 	{
-		w, err := NewWriter(Path{dir, prefix, 0}, nil)
+		w, err := NewWriter(dir)
 		if err != nil {
 			t.Fatal(err)
 		}
-		w.Append(&sej.Message{Key: []byte("a")})
+		w.Append(&Message{Key: []byte("a")})
+		w.Close()
+	}
+
+	{
+		w, err := NewWriter(path.Join(dir, "d1"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Append(&Message{Key: []byte("a")})
 		w.Close()
 	}
 	{
-		w, err := NewWriter(Path{dir, prefix, 1}, shardFNV)
+		w, err := NewWriter(path.Join(dir, "d2"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		w.Append(&sej.Message{Key: []byte("a")})
-		w.Append(&sej.Message{Key: []byte("b")})
+		w.Append(&Message{Key: []byte("a")})
+		w.Append(&Message{Key: []byte("b")})
 		w.Close()
 	}
 	time.Sleep(time.Millisecond)
@@ -56,18 +62,12 @@ func TestWatch(t *testing.T) {
 	}
 	sort.Strings(shards)
 	expected := "[" +
-		dir + `/blue ` +
-		dir + `/blue.1.000 ` +
-		dir + `/blue.1.001` +
+		dir + ` ` +
+		dir + `/d1 ` +
+		dir + `/d2` +
 		"]"
 	actual := fmt.Sprint(shards)
 	if expected != actual {
 		t.Fatalf("expect\n%s\ngot\n%s", expected, actual)
 	}
 }
-
-type ByDir []shard
-
-func (a ByDir) Len() int           { return len(a) }
-func (a ByDir) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByDir) Less(i, j int) bool { return a[i].Dir() < a[j].Dir() }

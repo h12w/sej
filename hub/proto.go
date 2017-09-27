@@ -1,6 +1,6 @@
 //go:generate colf -b .. go proto.colf
 //go:generate mv Colfer.go proto_auto.go
-package wire
+package hub
 
 import (
 	"encoding"

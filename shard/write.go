@@ -82,13 +82,9 @@ func (w *sejWriterPtr) getOrOpen() (*sej.Writer, error) {
 
 func dummyShardFunc(*sej.Message) uint16 { return 0 }
 
-func (w *Writer) SEJWriter(msg *sej.Message) (*sej.Writer, error) {
-	return w.ws[int(w.shard(msg)&w.shardMask)].getOrOpen()
-}
-
 // Append appends a message to a shard
 func (w *Writer) Append(msg *sej.Message) error {
-	writer, err := w.SEJWriter(msg)
+	writer, err := w.ws[int(w.shard(msg)&w.shardMask)].getOrOpen()
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-package wire
+package hub
 
 import (
 	"bufio"
@@ -23,42 +23,44 @@ type (
 	}
 )
 
-func (s *Server) start() {
+func (s *Server) start() error {
+	ws := newWriters(s.Dir)
 	c, err := net.Listen("tcp", s.Addr)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer c.Close()
 	for {
 		sock, err := c.Accept()
 		if err != nil {
-			// Error(err)
+			s.error(err)
 			continue
 		}
-		go newSession(sock, s.Timeout).loop()
+		go newSession(sock, ws, s).loop()
+	}
+}
+
+func (s *Server) error(err error) {
+	if s.ErrChan == nil {
+		return
+	}
+	select {
+	case s.ErrChan <- err:
+	default:
 	}
 }
 
 type session struct {
-	c       net.Conn
-	timeout time.Duration
-	errChan chan error
+	c  net.Conn
+	ws *writers
+	*Server
 }
 
-func newSession(c net.Conn, timeout time.Duration) *session {
+func newSession(c net.Conn, ws *writers, s *Server) *session {
 	return &session{
-		c:       c,
-		timeout: timeout,
-	}
-}
-
-func (s *session) error(err error) {
-	if s.errChan == nil {
-		return
-	}
-	select {
-	case s.errChan <- err:
-	default:
+		c:      c,
+		ws:     ws,
+		Server: s,
 	}
 }
 
@@ -78,7 +80,7 @@ func (s *session) loop() {
 
 func (s *session) serve(rw io.ReadWriter) {
 	var req Request
-	s.c.SetReadDeadline(time.Now().Add(s.timeout))
+	s.c.SetReadDeadline(time.Now().Add(s.Timeout))
 	_, err := req.ReadFrom(rw)
 	if err != nil {
 		s.error(errors.Wrap(err, "fail to read request"))
@@ -94,14 +96,29 @@ func (s *session) serve(rw io.ReadWriter) {
 }
 
 func (s *session) servePut(rw io.ReadWriter, req *Request) {
-	writer, err := s.getWriter(req)
+	writer, err := s.ws.Writer(req.ClientID, req.JournalDir)
 	if err != nil {
 		s.error(errors.Wrap(err, "fail to get writer for client "+req.ClientID))
 		return
 	}
 	var msg sej.Message
+	for req.Offset < writer.Offset() {
+		s.c.SetReadDeadline(time.Now().Add(s.Timeout))
+		_, err := msg.ReadFrom(rw)
+		if err != nil {
+			s.serveError(rw, req, err)
+			return
+		}
+	}
+	if req.Offset != writer.Offset() {
+		if err != nil {
+			s.serveError(rw, req, errors.Errorf("offset mismatch: request.offset=%d, writer.offset=%d", req.Offset, writer.Offset()))
+			return
+		}
+	}
+
 	for {
-		s.c.SetReadDeadline(time.Now().Add(s.timeout))
+		s.c.SetReadDeadline(time.Now().Add(s.Timeout))
 		_, err := msg.ReadFrom(rw)
 		if err != nil {
 			s.serveError(rw, req, err)
@@ -110,18 +127,14 @@ func (s *session) servePut(rw io.ReadWriter, req *Request) {
 		if msg.IsNull() {
 			break
 		}
-		// TODO: write message to files
-		//if writer.
-		_ = writer
+		if err := writer.Append(&msg); err != nil {
+			s.serveError(rw, req, err)
+			return
+		}
 	}
 	s.writeResp(rw, req, &Response{
 		RequestID: req.ID,
 	})
-}
-
-func (s *session) getWriter(req *Request) (*sej.Writer, error) {
-	// TODO
-	return nil, nil
 }
 
 func (s *session) serveError(rw io.ReadWriter, req *Request, err error) {
@@ -133,37 +146,8 @@ func (s *session) serveError(rw io.ReadWriter, req *Request, err error) {
 }
 
 func (s *session) writeResp(w io.Writer, req *Request, resp *Response) {
-	s.c.SetWriteDeadline(time.Now().Add(s.timeout))
+	s.c.SetWriteDeadline(time.Now().Add(s.Timeout))
 	if _, err := resp.WriteTo(w); err != nil {
 		s.error(errors.Wrap(err, "fail to write response to "+req.ClientID))
 	}
 }
-
-/*
-type writer struct {
-	dir string
-	m   map[string]*shard.Writer
-	mu  sync.Mutex
-}
-
-func newWriter(dir string) *writer {
-	return &writer{
-		dir: dir,
-		m:   make(map[string]*shard.Writer),
-	}
-}
-
-func (w *writer) sejWriter(req *Request) (*sej.Writer, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	shardWriter, ok := w.m[req.ClientID]
-	if !ok {
-		var err error
-		shardWriter, err = shard.NewWriter(path.Join(w.Dir, req.ClientID))
-		if err != nil {
-			return nil, err
-		}
-		w.m[req.ClientID] = shardWriter
-	}
-}
-*/

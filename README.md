@@ -15,18 +15,19 @@ SEJ Directory
 -------------
 
 ```
-[sej-dir]/
-    jnl.lck
-    jnl/
-        0000000000000000.jnl
-        000000001f9e521e.jnl
-        ......
-    ofs/
-        reader1.ofs
-        reader1.lck
-        reader2.ofs
-        reader2.lck
-        ......
+[root-dir]/
+    [sej-dir]/
+        jnl.lck
+        jnl/
+            0000000000000000.jnl
+            000000001f9e521e.jnl
+            ......
+        ofs/
+            reader1.ofs
+            reader1.lck
+            reader2.ofs
+            reader2.lck
+            ......
 ```
 
 Journal File format
@@ -84,7 +85,7 @@ Sharding
 --------
 
 ```
-[root-path]/
+[root-dir]/
     [shard0]/
     [shard1]/
     ......

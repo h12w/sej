@@ -1,4 +1,4 @@
-package shard
+package sej
 
 import (
 	"os"
@@ -8,20 +8,17 @@ import (
 )
 
 type (
-	// OpenShardFunc callback
-	OpenShardFunc func(string)
+	// OpenFunc callback
+	OpenFunc func(journalDir string)
 )
 
-// WatchInterval defines how long the watch polls for a new shard
-var WatchInterval = time.Minute
-
-// Watch watches the directory and calls open only once for each shard
-func Watch(rootDir string, open OpenShardFunc) error {
-	watcher := newShardWatcher(open)
+// WatchRootDir watches the directory and calls open only once for each shard
+func WatchRootDir(rootDir string, watchInterval time.Duration, open OpenFunc) error {
+	watcher := newDirWatcher(open)
 	t := time.Now().UTC()
 	for {
 		if !dirExists(rootDir) {
-			time.Sleep(WatchInterval)
+			time.Sleep(watchInterval)
 			continue
 		}
 		watcher.poll(rootDir)
@@ -30,32 +27,28 @@ func Watch(rootDir string, open OpenShardFunc) error {
 			return err
 		}
 		for _, subDir := range subDirs {
-			shard, err := parseShardDir(rootDir, subDir)
-			if err != nil {
-				return err
-			}
-			watcher.poll(shard.Dir())
+			watcher.poll(subDir)
 		}
-		if delay := WatchInterval - time.Since(t); delay > 0 {
+		if delay := watchInterval - time.Since(t); delay > 0 {
 			time.Sleep(delay)
 		}
 		t = time.Now().UTC()
 	}
 }
 
-type shardWatcher struct {
+type dirWatcher struct {
 	dirs map[string]bool
-	open OpenShardFunc
+	open OpenFunc
 }
 
-func newShardWatcher(open OpenShardFunc) shardWatcher {
-	return shardWatcher{
+func newDirWatcher(open OpenFunc) dirWatcher {
+	return dirWatcher{
 		dirs: make(map[string]bool),
 		open: open,
 	}
 }
 
-func (w *shardWatcher) poll(dir string) {
+func (w *dirWatcher) poll(dir string) {
 	if w.dirs[dir] {
 		return
 	}
