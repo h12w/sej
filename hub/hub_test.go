@@ -1,18 +1,18 @@
 package hub
 
 import (
-	"fmt"
+	"path"
 	"runtime"
 	"testing"
 	"time"
 
+	"appcoachs.net/x/log"
 	"h12.me/sej"
-	"h12.me/sej/sejtest"
 )
 
 func TestGET(t *testing.T) {
-	serverDir := sejtest.NewDir(t)
-	// clientDir := sejtest.NewDir(t)
+	tt := sej.Test{t}
+	serverDir := tt.NewDir()
 	const addr = "127.0.0.1:19001"
 	s := Server{
 		Addr:    addr,
@@ -23,49 +23,48 @@ func TestGET(t *testing.T) {
 	}
 	defer s.Close()
 	if err := s.Start(); err != nil {
-		if err, ok := err.(stackTracer); ok {
-			fmt.Println("STACK TRACE")
-			for _, f := range err.StackTrace() {
-				fmt.Println(f)
-			}
-		}
 		t.Fatal(err)
 	}
 	go func() {
 		for err := range s.ErrChan {
-			fmt.Println(err)
+			log.Error(err)
 		}
 	}()
 	go func() {
 		for line := range s.LogChan {
-			fmt.Println(line)
+			t.Log("server log:", line)
 		}
 	}()
 	runtime.Gosched()
 	client := Client{
 		Addr:       addr,
 		ClientID:   "client",
-		JournalDir: "blue",
+		JournalDir: "blue.0.1",
 		Timeout:    time.Second,
 	}
-	messages := []sej.Message{
-		{
-			Offset: 0,
-			Value:  []byte("v0"),
-		},
-		{
-			Offset: 1,
-			Value:  []byte("v1"),
-		},
-	}
+	defer client.Close()
+	dirOnHub := path.Join(serverDir, "client.blue.0.1")
+	testMessageTexts := []string{"a", "b", "c", "d", "e"}
+	messages := toMsgSlice(testMessageTexts)
 	time.Sleep(time.Second)
-	if err := client.Send(messages); err != nil {
-		if err, ok := err.(stackTracer); ok {
-			fmt.Println("STACK TRACE")
-			for _, f := range err.StackTrace() {
-				fmt.Println(f)
-			}
-		}
+
+	if err := client.Send(messages[:3]); err != nil {
 		t.Fatal(err)
 	}
+	if err := client.Send(messages); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := client.Quit(); err != nil {
+		t.Fatal(err)
+	}
+	tt.VerifyMessages(dirOnHub, testMessageTexts...)
+}
+
+func toMsgSlice(messages []string) []sej.Message {
+	ms := make([]sej.Message, len(messages))
+	for i := range ms {
+		ms[i] = sej.Message{Offset: uint64(i), Value: []byte(messages[i])}
+	}
+	return ms
 }

@@ -6,6 +6,7 @@ import (
 )
 
 func TestWriteFlush(t *testing.T) {
+	tt := Test{t}
 	path := newTestPath(t)
 	messages := []string{"a", "bc"}
 	w := newTestWriter(t, path)
@@ -16,10 +17,11 @@ func TestWriteFlush(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	verifyReadMessages(t, path, messages...)
+	tt.VerifyMessages(path, messages...)
 }
 
 func TestWriteSegment(t *testing.T) {
+	tt := Test{t}
 	for _, testcase := range []struct {
 		messages  []string
 		maxSize   int
@@ -56,12 +58,13 @@ func TestWriteSegment(t *testing.T) {
 				t.Fatalf("expect journal files with size %v but got %d", testcase.fileSizes, sizes)
 			}
 
-			verifyReadMessages(t, path, testcase.messages...)
+			tt.VerifyMessages(path, testcase.messages...)
 		}()
 	}
 }
 
 func TestWriteReopen(t *testing.T) {
+	tt := Test{t}
 	messages := []string{"a", "bc", "def"}
 	// test cases for multiple and single segments
 	for _, segmentSize := range []int{0, 50} {
@@ -74,7 +77,7 @@ func TestWriteReopen(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			verifyReadMessages(t, path, messages...)
+			tt.VerifyMessages(path, messages...)
 		}()
 	}
 }

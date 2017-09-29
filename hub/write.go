@@ -44,6 +44,7 @@ func (w *writers) Writer(clientID, journalDir string) (*sej.Writer, error) {
 		if err != nil {
 			return nil, err
 		}
+		w.m[key] = writer
 	}
 	return writer, nil
 }

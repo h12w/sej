@@ -11,6 +11,9 @@ import (
 )
 
 type (
+	// RequestType defines all possible requests
+	// version is not neeeded because a new version of request
+	// is a new request
 	RequestType     uint8
 	colferMarshaler interface {
 		MarshalTo(buf []byte) int
@@ -20,8 +23,9 @@ type (
 )
 
 const (
-	GET RequestType = iota + 1
+	QUIT RequestType = iota
 	PUT
+	GET
 )
 
 func (o *Request) WriteTo(w io.Writer) (n int64, err error)   { return writeTo256(w, o) }
@@ -41,7 +45,7 @@ func writeTo256(w io.Writer, o colferMarshaler) (int64, error) {
 	data[0] = uint8(l)
 	o.MarshalTo(data[1:])
 	nn, err := w.Write(data)
-	return int64(nn), errors.Wrap(err, "fail to write data")
+	return int64(nn), errors.Wrap(err, "fail to write data frame")
 }
 
 func readFrom256(r io.Reader, o colferUnmarshaler) (n int64, err error) {
@@ -49,13 +53,13 @@ func readFrom256(r io.Reader, o colferUnmarshaler) (n int64, err error) {
 	nn, err := r.Read(l[:])
 	n += int64(nn)
 	if err != nil {
-		return n, errors.Wrap(err, "fail to read data")
+		return n, errors.Wrap(err, "fail to read data size")
 	}
 	buf := make([]byte, int(l[0]))
 	nn, err = io.ReadAtLeast(r, buf, int(l[0]))
 	n += int64(nn)
 	if err != nil {
-		return n, errors.Wrap(err, "fail to read data")
+		return n, errors.Wrap(err, "fail to read data bytes")
 	}
 	return n, o.UnmarshalBinary(buf)
 }

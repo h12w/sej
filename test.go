@@ -1,16 +1,53 @@
 package sej
 
 import (
+	"flag"
+	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os"
+	"path"
 	"strconv"
+	"strings"
 	"testing"
-
-	"h12.me/sej/sejtest"
+	"time"
 )
 
-func TestMain(m *testing.M) {
-	sejtest.TestMain(m)
+// Test is a collection of test utility methods
+type Test struct {
+	testing.TB
+}
+
+// testDirPrefix is the prefix of test directories
+const testDirPrefix = "sej-test-"
+
+// Main should be called to clear test directories
+func (Test) Main(m *testing.M) {
+	flag.Parse()
+	rand.Seed(time.Now().UnixNano())
+	ret := m.Run()
+	removeTestFiles()
+	os.Exit(ret)
+}
+func removeTestFiles() {
+	files, _ := ioutil.ReadDir(".")
+	for _, file := range files {
+		if file.IsDir() && strings.HasPrefix(path.Base(file.Name()), testDirPrefix) {
+			if err := os.RemoveAll(file.Name()); err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+}
+
+// NewDir creates a new test directory
+// the path will be deleted automatically after the tests
+func (t Test) NewDir() string {
+	dir := testDirPrefix + strconv.Itoa(rand.Int())
+	if err := os.Mkdir(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }
 
 func writeTestMessages(t testing.TB, w *Writer, messages ...string) {
@@ -49,7 +86,7 @@ func flushTestWriter(t *testing.T, w *Writer) {
 	}
 }
 
-func readMessages(t *testing.T, path string, start uint64, n int) (messages []string) {
+func readMessages(t testing.TB, path string, start uint64, n int) (messages []string) {
 	r, err := NewScanner(path, start)
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +107,7 @@ func readMessages(t *testing.T, path string, start uint64, n int) (messages []st
 	return messages
 }
 
-func verifyReadMessages(t *testing.T, path string, messages ...string) {
+func (t Test) VerifyMessages(path string, messages ...string) {
 	gotMessages := readMessages(t, path, 0, len(messages))
 	for i, expected := range messages {
 		actual := gotMessages[i]
@@ -80,7 +117,7 @@ func verifyReadMessages(t *testing.T, path string, messages ...string) {
 	}
 }
 
-func (f *JournalFile) size(t *testing.T) int {
+func (f *JournalFile) size(t testing.TB) int {
 	info, err := os.Stat(f.FileName)
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +125,7 @@ func (f *JournalFile) size(t *testing.T) int {
 	return int(info.Size())
 }
 
-func (fs *JournalDir) sizes(t *testing.T) []int {
+func (fs *JournalDir) sizes(t testing.TB) []int {
 	sizes := make([]int, len(fs.Files))
 	for i := range fs.Files {
 		sizes[i] = fs.Files[i].size(t)
@@ -97,7 +134,7 @@ func (fs *JournalDir) sizes(t *testing.T) []int {
 }
 
 func newTestPath(t testing.TB) string {
-	path := sejtest.DirPrefix + strconv.Itoa(rand.Int())
+	path := testDirPrefix + strconv.Itoa(rand.Int())
 	if err := os.Mkdir(path, 0755); err != nil {
 		t.Fatal(err)
 	}

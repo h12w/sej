@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"h12.me/sej/sejtest"
+	"h12.me/sej"
 )
 
 type stackTracer interface {
@@ -12,5 +12,5 @@ type stackTracer interface {
 }
 
 func TestMain(m *testing.M) {
-	sejtest.TestMain(m)
+	sej.Test{}.Main(m)
 }

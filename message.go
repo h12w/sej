@@ -29,14 +29,6 @@ type readSeekCloser interface {
 	io.Closer
 }
 
-func (m *Message) IsNull() bool {
-	return m.Offset == 0 &&
-		m.Timestamp.IsZero() &&
-		m.Type == 0 &&
-		m.Key == nil &&
-		m.Value == nil
-}
-
 // WriteMessage writes the message
 // buf should be at least 8 bytes and is used to avoid allocation
 func WriteMessage(w io.Writer, buf []byte, m *Message) (int64, error) {

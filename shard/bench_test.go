@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"h12.me/sej"
-	"h12.me/sej/sejtest"
 )
 
 func BenchmarkAppend(b *testing.B) {
-	path := sejtest.NewDir(b)
+	tt := sej.Test{b}
+	path := tt.NewDir()
 	w, err := NewWriter(Path{path, "blue", 8}, shardFNV)
 	if err != nil {
 		b.Fatal(err)

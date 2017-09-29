@@ -2,6 +2,7 @@ package hub
 
 import (
 	"bytes"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -21,9 +22,32 @@ type Client struct {
 	mu     sync.Mutex
 }
 
+func (c *Client) Quit() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.serial++
+
+	if c.conn == nil {
+		return nil
+	}
+	req := Request{
+		ID:         c.serial,
+		Type:       uint8(QUIT),
+		ClientID:   c.ClientID,
+		JournalDir: c.JournalDir,
+	}
+	c.conn.SetWriteDeadline(time.Now().Add(c.Timeout))
+	if _, err := req.WriteTo(c.conn); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) Send(messages []sej.Message) error {
 	if len(messages) == 0 {
 		return nil
+	} else if len(messages) > math.MaxUint16 {
+		return errors.New("message count must be less than 65535")
 	}
 
 	c.mu.Lock()
@@ -32,7 +56,8 @@ func (c *Client) Send(messages []sej.Message) error {
 
 	if c.conn == nil {
 		var err error
-		c.conn, err = net.DialTimeout("tcp", c.Addr, c.Timeout)
+		// c.conn, err = net.DialTimeout("tcp", c.Addr, c.Timeout)
+		c.conn, err = net.Dial("tcp", c.Addr)
 		if err != nil {
 			return errors.Wrap(err, "fail to connect to sej hub "+c.Addr)
 		}
@@ -44,6 +69,7 @@ func (c *Client) Send(messages []sej.Message) error {
 		ClientID:   c.ClientID,
 		JournalDir: c.JournalDir,
 		Offset:     messages[0].Offset,
+		Count:      uint16(len(messages)),
 	}
 	if _, err := req.WriteTo(&buf); err != nil {
 		return err

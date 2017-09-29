@@ -4,12 +4,10 @@ import (
 	"math/rand"
 	"strconv"
 	"testing"
-
-	"h12.me/sej/sejtest"
 )
 
 func TestOpenOrCreateDir(t *testing.T) {
-	dir := sejtest.DirPrefix + strconv.Itoa(rand.Int())
+	dir := testDirPrefix + strconv.Itoa(rand.Int())
 	d, err := openOrCreateDir(dir)
 	if err != nil {
 		t.Fatal(err)

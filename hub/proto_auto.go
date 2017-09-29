@@ -49,6 +49,8 @@ type Request struct {
 	JournalDir string
 
 	Offset uint64
+
+	Count uint16
 }
 
 // MarshalTo encodes o as Colfer into buf and returns the number of bytes written.
@@ -123,6 +125,20 @@ func (o *Request) MarshalTo(buf []byte) int {
 		i++
 	}
 
+	if x := o.Count; x >= 1<<8 {
+		buf[i] = 5
+		i++
+		buf[i] = byte(x >> 8)
+		i++
+		buf[i] = byte(x)
+		i++
+	} else if x != 0 {
+		buf[i] = 5 | 0x80
+		i++
+		buf[i] = byte(x)
+		i++
+	}
+
 	buf[i] = 0x7f
 	i++
 	return i
@@ -169,6 +185,12 @@ func (o *Request) MarshalLen() (int, error) {
 		for l += 2; x >= 0x80; l++ {
 			x >>= 7
 		}
+	}
+
+	if x := o.Count; x >= 1<<8 {
+		l += 3
+	} else if x != 0 {
+		l += 2
 	}
 
 	if l > ColferSizeMax {
@@ -361,6 +383,26 @@ func (o *Request) Unmarshal(data []byte) (int, error) {
 			goto eof
 		}
 		o.Offset = intconv.Uint64(data[start:])
+		header = data[i]
+		i++
+	}
+
+	if header == 5 {
+		start := i
+		i += 2
+		if i >= len(data) {
+			goto eof
+		}
+		o.Count = intconv.Uint16(data[start:])
+		header = data[i]
+		i++
+	} else if header == 5|0x80 {
+		start := i
+		i++
+		if i >= len(data) {
+			goto eof
+		}
+		o.Count = uint16(data[start])
 		header = data[i]
 		i++
 	}

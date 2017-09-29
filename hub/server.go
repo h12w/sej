@@ -1,7 +1,6 @@
 package hub
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"net"
@@ -27,6 +26,8 @@ type (
 		Handle(msg *sej.Message) (uint64, error)
 	}
 )
+
+var errQuit = errors.New("quit")
 
 func (s *Server) Start() error {
 	s.mu.Lock()
@@ -107,27 +108,30 @@ func (s *session) loop() {
 			s.error(errors.Wrap(err, "fail to close client socket"))
 		}
 	}()
-	w := bufio.NewWriter(s.c)
-	rw := bufio.NewReadWriter(bufio.NewReader(s.c), w)
+	// rw := bufio.NewReadWriter(bufio.NewReader(s.c), bufio.NewWriter(s.c))
 	for {
-		if err := s.serve(rw); err != nil {
-			s.error(err)
+		if err := s.serve(s.c); err != nil {
+			if err != errQuit {
+				s.error(err)
+			}
 			break
 		}
-		if err := w.Flush(); err != nil {
-			s.error(err)
-			break
-		}
+		// if err := rw.Flush(); err != nil {
+		// 	s.error(err)
+		// 	break
+		// }
 	}
 }
 
 func (s *session) serve(rw io.ReadWriter) error {
 	var req Request
-	_, err := req.ReadFrom(rw)
-	if err != nil {
+	s.c.SetReadDeadline(time.Now().Add(time.Minute))
+	if _, err := req.ReadFrom(rw); err != nil {
 		return errors.Wrap(err, "fail to read request")
 	}
 	switch RequestType(req.Type) {
+	case QUIT:
+		return errQuit
 	case PUT:
 		return s.servePut(rw, &req)
 	case GET:
@@ -144,12 +148,15 @@ func (s *session) servePut(rw io.ReadWriter, req *Request) error {
 		return errors.Wrap(err, "fail to get writer for client "+req.ClientID)
 	}
 	var msg sej.Message
-	for req.Offset < writer.Offset() {
+	count := int(req.Count)
+	offset := req.Offset
+	for offset < writer.Offset() {
 		s.c.SetReadDeadline(time.Now().Add(s.Timeout))
-		_, err := msg.ReadFrom(rw)
-		if err != nil {
+		if _, err := msg.ReadFrom(rw); err != nil {
 			return s.serveError(rw, req, err)
 		}
+		count--
+		offset++
 	}
 	if req.Offset != writer.Offset() {
 		if err != nil {
@@ -157,18 +164,22 @@ func (s *session) servePut(rw io.ReadWriter, req *Request) error {
 		}
 	}
 
-	for {
+	for i := 0; i < count; i++ {
 		s.c.SetReadDeadline(time.Now().Add(s.Timeout))
-		_, err := msg.ReadFrom(rw)
-		if err != nil {
+		if _, err := msg.ReadFrom(rw); err != nil {
 			return s.serveError(rw, req, err)
 		}
-		if msg.IsNull() {
-			break
-		}
+		msg.Offset = offset
 		if err := writer.Append(&msg); err != nil {
 			return s.serveError(rw, req, err)
 		}
+		offset++
+	}
+	if err := writer.Flush(); err != nil {
+		return s.serveError(rw, req, err)
+	}
+	if err := writer.Sync(); err != nil {
+		return s.serveError(rw, req, err)
 	}
 	s.writeResp(rw, req, &Response{
 		RequestID: req.ID,

@@ -6,6 +6,7 @@ import (
 )
 
 func TestScanThroughSegmentBoundary(t *testing.T) {
+	tt := Test{t}
 	messages := []string{"a", "b", "c"}
 
 	path := newTestPath(t)
@@ -18,7 +19,7 @@ func TestScanThroughSegmentBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Close()
-	verifyReadMessages(t, path, messages...)
+	tt.VerifyMessages(path, messages...)
 }
 
 func TestScanFromOffset(t *testing.T) {

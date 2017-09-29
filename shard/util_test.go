@@ -3,9 +3,9 @@ package shard
 import (
 	"testing"
 
-	"h12.me/sej/sejtest"
+	"h12.me/sej"
 )
 
 func TestMain(m *testing.M) {
-	sejtest.TestMain(m)
+	sej.Test{}.Main(m)
 }
