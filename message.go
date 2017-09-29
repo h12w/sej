@@ -29,6 +29,14 @@ type readSeekCloser interface {
 	io.Closer
 }
 
+func (m *Message) IsNull() bool {
+	return m.Offset == 0 &&
+		m.Timestamp.IsZero() &&
+		m.Type == 0 &&
+		m.Key == nil &&
+		m.Value == nil
+}
+
 // WriteMessage writes the message
 // buf should be at least 8 bytes and is used to avoid allocation
 func WriteMessage(w io.Writer, buf []byte, m *Message) (int64, error) {
@@ -41,9 +49,6 @@ func WriteMessage(w io.Writer, buf []byte, m *Message) (int64, error) {
 	}
 
 	ts := m.Timestamp
-	if ts.IsZero() {
-		ts = time.Now().UTC()
-	}
 	n, err = writeInt64(w, buf, ts.UnixNano())
 	cnt += int64(n)
 	if err != nil {
@@ -124,14 +129,16 @@ func (m *Message) ReadFrom(r io.Reader) (n int64, err error) {
 		return cnt, errMessageCorrupted
 	}
 
-	m.Key = make([]byte, int(keyLen))
-	nn, err = io.ReadFull(r, m.Key)
-	cnt += int64(nn)
-	if err != nil {
-		return cnt, err
-	}
-	if nn != int(keyLen) {
-		return cnt, fmt.Errorf("message is truncated at %d", m.Offset)
+	if keyLen > 0 {
+		m.Key = make([]byte, int(keyLen))
+		nn, err = io.ReadFull(r, m.Key)
+		cnt += int64(nn)
+		if err != nil {
+			return cnt, err
+		}
+		if nn != int(keyLen) {
+			return cnt, fmt.Errorf("message is truncated at %d", m.Offset)
+		}
 	}
 
 	var valueLen int32

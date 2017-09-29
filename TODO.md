@@ -4,11 +4,8 @@ TODO
 ### Sharding
 
 * Syncer
-    * Shard File structure (shd/00-ff)
-    * ShardWriter (shard = fnv32a(id)[:2])
-    * ShardScanner
-    * ShardConsumer
     * Wire Protocol
+    * close hub writer
     * Routing Rule
 
 ### Benchmark

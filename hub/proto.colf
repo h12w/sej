@@ -1,17 +1,25 @@
 package hub
 
 type (
-	Request struct {
-		ID         uint64
-		Type       uint8
+	RequestTitle struct {
+		Verb       uint8
 		ClientID   text
+	}
+
+	Put struct {
+		JournalDir text
+	}
+	
+	Get struct {
 		JournalDir text
 		Offset     uint64
-		Count      uint16
 	}
+
+	Quit struct {
+		JournalDir text
+	}
+
 	Response struct {
-		RequestID  uint64
 		Err        text
 	}
 )
-

@@ -1,12 +1,11 @@
 package hub
 
 import (
+	"fmt"
 	"path"
-	"runtime"
 	"testing"
 	"time"
 
-	"appcoachs.net/x/log"
 	"h12.me/sej"
 )
 
@@ -27,7 +26,7 @@ func TestGET(t *testing.T) {
 	}
 	go func() {
 		for err := range s.ErrChan {
-			log.Error(err)
+			fmt.Println("server error", err)
 		}
 	}()
 	go func() {
@@ -35,7 +34,6 @@ func TestGET(t *testing.T) {
 			t.Log("server log:", line)
 		}
 	}()
-	runtime.Gosched()
 	client := Client{
 		Addr:       addr,
 		ClientID:   "client",
@@ -46,11 +44,12 @@ func TestGET(t *testing.T) {
 	dirOnHub := path.Join(serverDir, "client.blue.0.1")
 	testMessageTexts := []string{"a", "b", "c", "d", "e"}
 	messages := toMsgSlice(testMessageTexts)
-	time.Sleep(time.Second)
 
 	if err := client.Send(messages[:3]); err != nil {
 		t.Fatal(err)
 	}
+
+	// send duplicated messages
 	if err := client.Send(messages); err != nil {
 		t.Fatal(err)
 	}

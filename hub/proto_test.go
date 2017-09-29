@@ -2,16 +2,28 @@ package hub
 
 import (
 	"bytes"
-	"reflect"
+	"encoding/json"
 	"testing"
+	"time"
+
+	"h12.me/sej"
 )
 
 func TestMarshal(t *testing.T) {
 	req := Request{
-		ID:         1,
-		Type:       2,
-		ClientID:   "b",
-		JournalDir: "c.3.4",
+		Title: RequestTitle{
+			Verb:     uint8(PUT),
+			ClientID: "b",
+		},
+		Header: &Put{
+			JournalDir: "c.3.4",
+		},
+		Messages: []sej.Message{
+			{
+				Timestamp: time.Now().UTC().Truncate(time.Millisecond),
+				Value:     []byte("a"),
+			},
+		},
 	}
 	w := new(bytes.Buffer)
 	if _, err := req.WriteTo(w); err != nil {
@@ -21,7 +33,12 @@ func TestMarshal(t *testing.T) {
 	if _, err := res.ReadFrom(bytes.NewReader(w.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(req, res) {
-		t.Fatalf("expect\n%v\ngot\n%v\n", req, res)
+	if expect, actual := js(req), js(res); expect != actual {
+		t.Fatalf("expect\n%v\ngot\n%v\n", expect, actual)
 	}
+}
+
+func js(v interface{}) string {
+	buf, _ := json.MarshalIndent(v, "", "    ")
+	return string(buf)
 }
