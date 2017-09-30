@@ -50,7 +50,12 @@ func (s *Server) Start() error {
 		for {
 			sock, err := l.Accept()
 			if err != nil {
-				// server close?
+				s.mu.Lock()
+				closed := (s.l == nil)
+				s.mu.Unlock()
+				if !closed {
+					s.error(err)
+				}
 				break
 			}
 			go newSession(sock, ws, s).loop()
@@ -60,7 +65,8 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) log(format string, v ...interface{}) {
-	if s.ErrChan == nil {
+	if s.LogChan == nil {
+		return
 	}
 	select {
 	case s.LogChan <- fmt.Sprintf(format, v...):
@@ -73,6 +79,7 @@ func (s *Server) Close() error {
 	s.mu.Lock()
 	if s.l != nil {
 		err = s.l.Close()
+		s.l = nil
 	}
 	s.mu.Unlock()
 	return err

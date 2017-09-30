@@ -83,8 +83,8 @@ func newHubTest(t testing.TB) *hubTest {
 		Addr:    addr,
 		Dir:     serverDir,
 		Timeout: time.Second,
-		ErrChan: make(chan error),
-		LogChan: make(chan string),
+		ErrChan: make(chan error, 1),
+		LogChan: make(chan string, 1),
 	}
 	if err := server.Start(); err != nil {
 		t.Fatal(err)

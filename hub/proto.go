@@ -7,9 +7,8 @@ import (
 	"io"
 	"math"
 
-	"h12.me/sej"
-
 	"github.com/pkg/errors"
+	"h12.me/sej"
 )
 
 type (
@@ -22,9 +21,7 @@ type (
 		MarshalLen() (int, error)
 	}
 	colferUnmarshaler encoding.BinaryUnmarshaler
-	colferObject      interface {
-	}
-	Request struct {
+	Request           struct {
 		Title  RequestTitle
 		Header interface {
 			io.WriterTo
