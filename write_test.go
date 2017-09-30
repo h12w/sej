@@ -17,7 +17,7 @@ func TestWriteFlush(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tt.VerifyMessages(path, messages...)
+	tt.VerifyMessageValues(path, messages...)
 }
 
 func TestWriteSegment(t *testing.T) {
@@ -58,7 +58,7 @@ func TestWriteSegment(t *testing.T) {
 				t.Fatalf("expect journal files with size %v but got %d", testcase.fileSizes, sizes)
 			}
 
-			tt.VerifyMessages(path, testcase.messages...)
+			tt.VerifyMessageValues(path, testcase.messages...)
 		}()
 	}
 }
@@ -77,7 +77,7 @@ func TestWriteReopen(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			tt.VerifyMessages(path, messages...)
+			tt.VerifyMessageValues(path, messages...)
 		}()
 	}
 }

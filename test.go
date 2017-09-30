@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -86,7 +87,28 @@ func flushTestWriter(t *testing.T, w *Writer) {
 	}
 }
 
-func readMessages(t testing.TB, path string, start uint64, n int) (messages []string) {
+func readMessages(t testing.TB, path string, start uint64, n int) (messages []Message) {
+	r, err := NewScanner(path, start)
+	if err != nil {
+		t.Fatal(err)
+		return nil
+	}
+	defer r.Close()
+	for i := 0; i < n; i++ {
+		r.Scan()
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		offset := start + uint64(i) + 1
+		if r.Offset() != offset {
+			t.Fatalf("offset: expect %d but read %d", offset, r.Offset())
+		}
+		messages = append(messages, *r.Message())
+	}
+	return messages
+}
+
+func readMessageValues(t testing.TB, path string, start uint64, n int) (messages []string) {
 	r, err := NewScanner(path, start)
 	if err != nil {
 		t.Fatal(err)
@@ -107,8 +129,18 @@ func readMessages(t testing.TB, path string, start uint64, n int) (messages []st
 	return messages
 }
 
-func (t Test) VerifyMessages(path string, messages ...string) {
+func (t Test) VerifyMessages(path string, messages []Message) {
 	gotMessages := readMessages(t, path, 0, len(messages))
+	for i, expected := range messages {
+		actual := gotMessages[i]
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("expect %v but got %v", expected, actual)
+		}
+	}
+}
+
+func (t Test) VerifyMessageValues(path string, messages ...string) {
+	gotMessages := readMessageValues(t, path, 0, len(messages))
 	for i, expected := range messages {
 		actual := gotMessages[i]
 		if actual != expected {

@@ -19,7 +19,7 @@ func TestScanThroughSegmentBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Close()
-	tt.VerifyMessages(path, messages...)
+	tt.VerifyMessageValues(path, messages...)
 }
 
 func TestScanFromOffset(t *testing.T) {

@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"fmt"
 	"path"
 	"testing"
@@ -9,61 +10,125 @@ import (
 	"h12.me/sej"
 )
 
-func TestGET(t *testing.T) {
+func TestHub(t *testing.T) {
+	tt := newHubTest(t)
+	defer tt.Close()
+	messages := []string{"a", "b", "c", "d", "e"}
+	sejMessages := toMsgSlice(messages)
+	// send first 3
+	if err := tt.Send(sejMessages[:3]); err != nil {
+		t.Fatal(err)
+	}
+	// send rest with duplicated messages
+	if err := tt.Send(sejMessages); err != nil {
+		t.Fatal(err)
+	}
+	tt.VerifyServerMessages(sejMessages)
+	time.Sleep(time.Second)
+}
+
+func BenchmarkHub_1000_10(b *testing.B) {
+	tt := newHubTest(b)
+	defer tt.Close()
+
+	const (
+		batchSize = 1000
+		batchNum  = 10
+	)
+	messages := make([]sej.Message, batchNum*batchSize)
+	value := bytes.Repeat([]byte{'a'}, 100)
+	now := time.Now().Truncate(time.Millisecond).UTC()
+	for i := range messages {
+		messages[i] = sej.Message{
+			Timestamp: now,
+			Key:       []byte("key-" + fmt.Sprintf("%09x", i)),
+			Value:     value,
+		}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for batch := 0; batch < batchNum; batch++ {
+			if err := tt.Send(messages[batchNum : batchNum+batchSize]); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	b.StopTimer()
+}
+
+type hubTest struct {
+	sej.Test
+	*Client
+	*Server
+}
+
+func (h *hubTest) Close() {
+	t := h.Test
+	if err := h.Client.Quit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Server.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func newHubTest(t testing.TB) *hubTest {
 	tt := sej.Test{t}
 	serverDir := tt.NewDir()
 	const addr = "127.0.0.1:19001"
-	s := Server{
+	server := &Server{
 		Addr:    addr,
 		Dir:     serverDir,
 		Timeout: time.Second,
 		ErrChan: make(chan error),
 		LogChan: make(chan string),
 	}
-	defer s.Close()
-	if err := s.Start(); err != nil {
+	if err := server.Start(); err != nil {
 		t.Fatal(err)
 	}
 	go func() {
-		for err := range s.ErrChan {
+		for err := range server.ErrChan {
 			fmt.Println("server error", err)
 		}
 	}()
 	go func() {
-		for line := range s.LogChan {
+		for line := range server.LogChan {
 			t.Log("server log:", line)
 		}
 	}()
-	client := Client{
+	client := &Client{
 		Addr:       addr,
 		ClientID:   "client",
 		JournalDir: "blue.0.1",
 		Timeout:    time.Second,
 	}
-	defer client.Close()
-	dirOnHub := path.Join(serverDir, "client.blue.0.1")
-	testMessageTexts := []string{"a", "b", "c", "d", "e"}
-	messages := toMsgSlice(testMessageTexts)
-
-	if err := client.Send(messages[:3]); err != nil {
-		t.Fatal(err)
+	return &hubTest{
+		Test:   sej.Test{t},
+		Server: server,
+		Client: client,
 	}
+}
 
-	// send duplicated messages
-	if err := client.Send(messages); err != nil {
-		t.Fatal(err)
-	}
+func (h *hubTest) clientDirOnHub() string {
+	return path.Join(h.Server.Dir, h.Client.ClientID+"."+h.Client.JournalDir)
+}
 
-	if err := client.Quit(); err != nil {
-		t.Fatal(err)
-	}
-	tt.VerifyMessages(dirOnHub, testMessageTexts...)
+func (h *hubTest) VerifyServerMessages(messages []sej.Message) {
+	h.VerifyMessages(h.clientDirOnHub(), messages)
 }
 
 func toMsgSlice(messages []string) []sej.Message {
 	ms := make([]sej.Message, len(messages))
+	now := time.Now().Truncate(time.Millisecond).UTC()
 	for i := range ms {
-		ms[i] = sej.Message{Offset: uint64(i), Value: []byte(messages[i])}
+		ms[i] = sej.Message{
+			Timestamp: now,
+			Offset:    uint64(i),
+			Value:     []byte(messages[i]),
+		}
 	}
 	return ms
 }

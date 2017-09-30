@@ -155,10 +155,11 @@ func (s *session) servePut(rw io.ReadWriter, req *Request, put *Put) error {
 		return errors.Wrap(err, "fail to get writer for client "+req.Title.ClientID)
 	}
 	for _, msg := range req.Messages {
-		if msg.Offset < writer.Offset() {
+		if msg.Offset > writer.Offset() {
+			return errors.Wrapf(err, "offset out of order, msg: %d, writer %d", msg.Offset, writer.Offset())
+		} else if msg.Offset < writer.Offset() { // redundant
 			continue
 		}
-		//TODO: what if msg.Offset > writer.Offset
 		if err := writer.Append(&msg); err != nil {
 			return s.serveError(rw, req, err)
 		}
