@@ -27,19 +27,20 @@ func TestHub(t *testing.T) {
 	time.Sleep(time.Second)
 }
 
-func BenchmarkHub_1000_10(b *testing.B) {
+func BenchmarkHubBatch1000(b *testing.B) {
 	tt := newHubTest(b)
 	defer tt.Close()
 
-	const (
+	var (
 		batchSize = 1000
-		batchNum  = 10
+		batchNum  = b.N
 	)
-	messages := make([]sej.Message, batchNum*batchSize)
-	value := bytes.Repeat([]byte{'a'}, 100)
 	now := time.Now().Truncate(time.Millisecond).UTC()
+	value := bytes.Repeat([]byte{'a'}, 100)
+	messages := make([]sej.Message, batchSize*batchNum)
 	for i := range messages {
 		messages[i] = sej.Message{
+			Offset:    uint64(i),
 			Timestamp: now,
 			Key:       []byte("key-" + fmt.Sprintf("%09x", i)),
 			Value:     value,
@@ -47,13 +48,13 @@ func BenchmarkHub_1000_10(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for batch := 0; batch < batchNum; batch++ {
-			if err := tt.Send(messages[batchNum : batchNum+batchSize]); err != nil {
-				b.Fatal(err)
-			}
+		batch := messages[batchSize*i : batchSize*(i+1)]
+		if err := tt.Send(batch); err != nil {
+			b.Fatal(err)
 		}
 	}
 	b.StopTimer()
+	tt.VerifyMessages(tt.clientDirOnHub(), messages)
 }
 
 type hubTest struct {
@@ -118,6 +119,18 @@ func (h *hubTest) clientDirOnHub() string {
 
 func (h *hubTest) VerifyServerMessages(messages []sej.Message) {
 	h.VerifyMessages(h.clientDirOnHub(), messages)
+}
+
+func (h *hubTest) serverLatestOffset() uint64 {
+	dir, err := sej.OpenJournalDir(sej.JournalDirPath(h.clientDirOnHub()))
+	if err != nil {
+		h.Fatal(err)
+	}
+	offset, err := dir.Last().LastOffset()
+	if err != nil {
+		h.Fatal(err)
+	}
+	return offset
 }
 
 func toMsgSlice(messages []string) []sej.Message {

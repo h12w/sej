@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 	"h12.me/sej"
+	"h12.me/sej/hub/proto"
 )
 
 type (
@@ -133,17 +134,17 @@ func (s *session) loop() {
 }
 
 func (s *session) serve(rw io.ReadWriter) error {
-	var req Request
+	var req proto.Request
 	s.c.SetReadDeadline(time.Now().Add(time.Minute))
 	if _, err := req.ReadFrom(rw); err != nil {
 		return errors.Wrap(err, "fail to read request")
 	}
 	switch header := req.Header.(type) {
-	case *Quit:
+	case *proto.Quit:
 		return s.serveQuit(rw, &req, header)
-	case *Put:
+	case *proto.Put:
 		return s.servePut(rw, &req, header)
-	case *Get:
+	case *proto.Get:
 		return s.serveError(rw, &req, errors.Errorf("unsupported request type %d", req.Title.Verb))
 	default:
 		return s.serveError(rw, &req, errors.Errorf("unknown request type %d", req.Title.Verb))
@@ -151,12 +152,12 @@ func (s *session) serve(rw io.ReadWriter) error {
 	return nil
 }
 
-func (s *session) serveQuit(rw io.ReadWriter, req *Request, quit *Quit) error {
-	s.writeResp(rw, req, &Response{})
+func (s *session) serveQuit(rw io.ReadWriter, req *proto.Request, quit *proto.Quit) error {
+	s.writeResp(rw, req, &proto.Response{})
 	return errQuit
 }
 
-func (s *session) servePut(rw io.ReadWriter, req *Request, put *Put) error {
+func (s *session) servePut(rw io.ReadWriter, req *proto.Request, put *proto.Put) error {
 	writer, err := s.ws.Writer(req.Title.ClientID, put.JournalDir)
 	if err != nil {
 		return errors.Wrap(err, "fail to get writer for client "+req.Title.ClientID)
@@ -177,18 +178,18 @@ func (s *session) servePut(rw io.ReadWriter, req *Request, put *Put) error {
 	if err := writer.Sync(); err != nil {
 		return s.serveError(rw, req, err)
 	}
-	s.writeResp(rw, req, &Response{})
+	s.writeResp(rw, req, &proto.Response{})
 	return nil
 }
 
-func (s *session) serveError(rw io.ReadWriter, req *Request, err error) error {
-	s.writeResp(rw, req, &Response{
+func (s *session) serveError(rw io.ReadWriter, req *proto.Request, err error) error {
+	s.writeResp(rw, req, &proto.Response{
 		Err: err.Error(),
 	})
 	return err
 }
 
-func (s *session) writeResp(w io.Writer, req *Request, resp *Response) error {
+func (s *session) writeResp(w io.Writer, req *proto.Request, resp *proto.Response) error {
 	s.c.SetWriteDeadline(time.Now().Add(s.Timeout))
 	if _, err := resp.WriteTo(w); err != nil {
 		return errors.Wrap(err, "fail to write response to "+req.Title.ClientID)

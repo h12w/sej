@@ -2,6 +2,7 @@
 //go:generate mv Colfer.go proto_auto.go
 package hub
 
+/*
 import (
 	"encoding"
 	"io"
@@ -176,3 +177,4 @@ func readUint16(r io.Reader, i *uint16) (int64, error) {
 	*i = uint16(b[0])<<8 | uint16(b[1])
 	return int64(n), nil
 }
+*/

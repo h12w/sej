@@ -1,4 +1,4 @@
-package hub
+package proto
 
 import (
 	"bytes"
@@ -7,16 +7,15 @@ import (
 	"time"
 
 	"h12.me/sej"
-	"h12.me/sej/hub/proto"
 )
 
 func TestMarshal(t *testing.T) {
-	req := proto.Request{
-		Title: proto.RequestTitle{
-			Verb:     uint8(proto.PUT),
+	req := Request{
+		Title: RequestTitle{
+			Verb:     uint8(PUT),
 			ClientID: "b",
 		},
-		Header: &proto.Put{
+		Header: &Put{
 			JournalDir: "c.3.4",
 		},
 		Messages: []sej.Message{
@@ -24,13 +23,17 @@ func TestMarshal(t *testing.T) {
 				Timestamp: time.Now().UTC().Truncate(time.Millisecond),
 				Value:     []byte("a"),
 			},
+			{
+				Timestamp: time.Now().UTC().Truncate(time.Millisecond),
+				Value:     []byte("b"),
+			},
 		},
 	}
 	w := new(bytes.Buffer)
 	if _, err := req.WriteTo(w); err != nil {
 		t.Fatal(err)
 	}
-	var res proto.Request
+	var res Request
 	if _, err := res.ReadFrom(bytes.NewReader(w.Bytes())); err != nil {
 		t.Fatal(err)
 	}

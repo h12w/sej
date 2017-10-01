@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"h12.me/sej"
+	"h12.me/sej/hub/proto"
 )
 
 type Client struct {
@@ -26,12 +27,12 @@ func (c *Client) Quit() error {
 	if c.conn == nil {
 		return nil
 	}
-	req := Request{
-		Title: RequestTitle{
-			Verb:     uint8(QUIT),
+	req := proto.Request{
+		Title: proto.RequestTitle{
+			Verb:     uint8(proto.QUIT),
 			ClientID: c.ClientID,
 		},
-		Header: &Quit{
+		Header: &proto.Quit{
 			JournalDir: c.JournalDir,
 		},
 	}
@@ -40,7 +41,7 @@ func (c *Client) Quit() error {
 		return err
 	}
 
-	var resp Response
+	var resp proto.Response
 	c.conn.SetReadDeadline(time.Now().Add(c.Timeout))
 	if _, err := resp.ReadFrom(c.conn); err != nil {
 		c.close()
@@ -67,12 +68,12 @@ func (c *Client) Send(messages []sej.Message) error {
 			return errors.Wrap(err, "fail to connect to sej hub "+c.Addr)
 		}
 	}
-	req := Request{
-		Title: RequestTitle{
-			Verb:     uint8(PUT),
+	req := proto.Request{
+		Title: proto.RequestTitle{
+			Verb:     uint8(proto.PUT),
 			ClientID: c.ClientID,
 		},
-		Header: &Put{
+		Header: &proto.Put{
 			JournalDir: c.JournalDir,
 		},
 		Messages: messages,
@@ -82,7 +83,7 @@ func (c *Client) Send(messages []sej.Message) error {
 		return err
 	}
 
-	var resp Response
+	var resp proto.Response
 	c.conn.SetReadDeadline(time.Now().Add(c.Timeout))
 	if _, err := resp.ReadFrom(c.conn); err != nil {
 		c.close()
