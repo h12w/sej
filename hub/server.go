@@ -11,7 +11,6 @@ import (
 
 	"github.com/pkg/errors"
 	"h12.me/sej"
-	"h12.me/sej/hub/proto"
 )
 
 type (
@@ -143,29 +142,29 @@ func (s *session) loop() {
 
 func (s *session) serve() error {
 	s.c.SetReadDeadline(time.Now().Add(time.Minute))
-	var req proto.Request
+	var req Request
 	if err := s.dec.Decode(&req); err != nil {
 		return errors.Wrap(err, "fail to read request")
 	}
-	switch body := req.Body.(type) {
-	case *proto.Quit:
+	switch body := req.Command.(type) {
+	case *Quit:
 		return s.serveQuit(&req, body)
-	case *proto.Put:
+	case *Put:
 		return s.servePut(&req, body)
-	case *proto.Get:
+	case *Get:
 		return s.serveError(&req, errors.New("unsupported request type GET"))
 	default:
-		return s.serveError(&req, errors.Errorf("unknown request type %v", reflect.TypeOf(req.Body)))
+		return s.serveError(&req, errors.Errorf("unknown request type %v", reflect.TypeOf(req.Command)))
 	}
 	return nil
 }
 
-func (s *session) serveQuit(req *proto.Request, quit *proto.Quit) error {
-	s.writeResp(req, &proto.Response{})
+func (s *session) serveQuit(req *Request, quit *Quit) error {
+	s.writeResp(req, &Response{})
 	return errQuit
 }
 
-func (s *session) servePut(req *proto.Request, put *proto.Put) error {
+func (s *session) servePut(req *Request, put *Put) error {
 	writer, err := s.ws.Writer(req.ClientID, put.JournalDir)
 	if err != nil {
 		return errors.Wrap(err, "fail to get writer for client "+req.ClientID)
@@ -186,18 +185,18 @@ func (s *session) servePut(req *proto.Request, put *proto.Put) error {
 	if err := writer.Sync(); err != nil {
 		return s.serveError(req, err)
 	}
-	s.writeResp(req, &proto.Response{})
+	s.writeResp(req, &Response{})
 	return nil
 }
 
-func (s *session) serveError(req *proto.Request, err error) error {
-	s.writeResp(req, &proto.Response{
+func (s *session) serveError(req *Request, err error) error {
+	s.writeResp(req, &Response{
 		Err: err.Error(),
 	})
 	return err
 }
 
-func (s *session) writeResp(req *proto.Request, resp *proto.Response) error {
+func (s *session) writeResp(req *Request, resp *Response) error {
 	s.c.SetWriteDeadline(time.Now().Add(s.Timeout))
 	if err := s.enc.Encode(resp); err != nil {
 		return errors.Wrap(err, "fail to write response to "+req.ClientID)

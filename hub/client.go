@@ -9,7 +9,6 @@ import (
 
 	"github.com/pkg/errors"
 	"h12.me/sej"
-	"h12.me/sej/hub/proto"
 )
 
 type Client struct {
@@ -32,9 +31,9 @@ func (c *Client) Quit() error {
 	if c.conn == nil {
 		return nil
 	}
-	req := proto.Request{
+	req := Request{
 		ClientID: c.ClientID,
-		Body: &proto.Quit{
+		Command: &Quit{
 			JournalDir: c.JournalDir,
 		},
 	}
@@ -46,7 +45,7 @@ func (c *Client) Quit() error {
 		return err
 	}
 
-	var resp proto.Response
+	var resp Response
 	c.conn.SetReadDeadline(time.Now().Add(c.Timeout))
 	if err := c.dec.Decode(&resp); err != nil {
 		c.close()
@@ -76,9 +75,9 @@ func (c *Client) Send(messages []sej.Message) error {
 		c.enc = gob.NewEncoder(c.outBuf)
 		c.dec = gob.NewDecoder(c.conn)
 	}
-	req := proto.Request{
+	req := Request{
 		ClientID: c.ClientID,
-		Body: &proto.Put{
+		Command: &Put{
 			JournalDir: c.JournalDir,
 			Messages:   messages,
 		},
@@ -91,7 +90,7 @@ func (c *Client) Send(messages []sej.Message) error {
 		return err
 	}
 
-	var resp proto.Response
+	var resp Response
 	c.conn.SetReadDeadline(time.Now().Add(c.Timeout))
 	if err := c.dec.Decode(&resp); err != nil {
 		c.close()

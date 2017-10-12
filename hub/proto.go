@@ -1,4 +1,4 @@
-package proto
+package hub
 
 import (
 	"encoding/gob"
@@ -9,8 +9,12 @@ import (
 type (
 	Request struct {
 		ClientID string
-		Body     interface{}
+		Command  Command
 	}
+	Command interface {
+		isCommand()
+	}
+
 	Messages []sej.Message
 
 	Put struct {
@@ -40,3 +44,7 @@ func init() {
 	gob.Register(&Get{})
 	gob.Register(&Quit{})
 }
+
+func (Put) isCommand()  {}
+func (Get) isCommand()  {}
+func (Quit) isCommand() {}
