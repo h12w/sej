@@ -1,6 +1,8 @@
 package hub
 
 import (
+	"bufio"
+	"encoding/gob"
 	"net"
 	"sync"
 	"time"
@@ -16,8 +18,11 @@ type Client struct {
 	JournalDir string
 	Timeout    time.Duration
 
-	conn net.Conn
-	mu   sync.Mutex
+	enc    *gob.Encoder
+	dec    *gob.Decoder
+	outBuf *bufio.Writer
+	conn   net.Conn
+	mu     sync.Mutex
 }
 
 func (c *Client) Quit() error {
@@ -28,22 +33,22 @@ func (c *Client) Quit() error {
 		return nil
 	}
 	req := proto.Request{
-		Title: proto.RequestTitle{
-			Verb:     uint8(proto.QUIT),
-			ClientID: c.ClientID,
-		},
-		Header: &proto.Quit{
+		ClientID: c.ClientID,
+		Body: &proto.Quit{
 			JournalDir: c.JournalDir,
 		},
 	}
 	c.conn.SetWriteDeadline(time.Now().Add(c.Timeout))
-	if _, err := req.WriteTo(c.conn); err != nil {
+	if err := c.enc.Encode(&req); err != nil {
+		return err
+	}
+	if err := c.outBuf.Flush(); err != nil {
 		return err
 	}
 
 	var resp proto.Response
 	c.conn.SetReadDeadline(time.Now().Add(c.Timeout))
-	if _, err := resp.ReadFrom(c.conn); err != nil {
+	if err := c.dec.Decode(&resp); err != nil {
 		c.close()
 		return err
 	}
@@ -67,25 +72,28 @@ func (c *Client) Send(messages []sej.Message) error {
 		if err != nil {
 			return errors.Wrap(err, "fail to connect to sej hub "+c.Addr)
 		}
+		c.outBuf = bufio.NewWriter(c.conn)
+		c.enc = gob.NewEncoder(c.outBuf)
+		c.dec = gob.NewDecoder(c.conn)
 	}
 	req := proto.Request{
-		Title: proto.RequestTitle{
-			Verb:     uint8(proto.PUT),
-			ClientID: c.ClientID,
-		},
-		Header: &proto.Put{
+		ClientID: c.ClientID,
+		Body: &proto.Put{
 			JournalDir: c.JournalDir,
+			Messages:   messages,
 		},
-		Messages: messages,
 	}
 	c.conn.SetWriteDeadline(time.Now().Add(c.Timeout))
-	if _, err := req.WriteTo(c.conn); err != nil {
+	if err := c.enc.Encode(&req); err != nil {
+		return err
+	}
+	if err := c.outBuf.Flush(); err != nil {
 		return err
 	}
 
 	var resp proto.Response
 	c.conn.SetReadDeadline(time.Now().Add(c.Timeout))
-	if _, err := resp.ReadFrom(c.conn); err != nil {
+	if err := c.dec.Decode(&resp); err != nil {
 		c.close()
 		return err
 	}
@@ -107,6 +115,9 @@ func (c *Client) close() error {
 			return err
 		}
 		c.conn = nil
+		c.dec = nil
+		c.enc = nil
+		c.outBuf = nil
 	}
 	return nil
 }

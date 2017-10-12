@@ -2,9 +2,10 @@ package hub
 
 import (
 	"bufio"
+	"encoding/gob"
 	"fmt"
-	"io"
 	"net"
+	"reflect"
 	"sync"
 	"time"
 
@@ -98,14 +99,22 @@ func (s *Server) error(err error) error {
 }
 
 type session struct {
-	c  net.Conn
-	ws *writers
+	c      net.Conn
+	enc    *gob.Encoder
+	dec    *gob.Decoder
+	outBuf *bufio.Writer
+	ws     *writers
 	*Server
 }
 
 func newSession(c net.Conn, ws *writers, s *Server) *session {
+	w := bufio.NewWriter(c)
+	enc := gob.NewEncoder(w)
 	return &session{
 		c:      c,
+		enc:    enc,
+		dec:    gob.NewDecoder(c),
+		outBuf: w,
 		ws:     ws,
 		Server: s,
 	}
@@ -117,82 +126,81 @@ func (s *session) loop() {
 			s.error(errors.Wrap(err, "fail to close client socket"))
 		}
 	}()
-	rw := bufio.NewReadWriter(bufio.NewReader(s.c), bufio.NewWriter(s.c))
-	defer rw.Flush()
+	defer s.outBuf.Flush()
 	for {
-		if err := s.serve(rw); err != nil {
+		if err := s.serve(); err != nil {
 			if err != errQuit {
 				s.error(err)
 			}
 			break
 		}
-		if err := rw.Flush(); err != nil {
+		if err := s.outBuf.Flush(); err != nil {
 			s.error(err)
 			break
 		}
 	}
 }
 
-func (s *session) serve(rw io.ReadWriter) error {
-	var req proto.Request
+func (s *session) serve() error {
 	s.c.SetReadDeadline(time.Now().Add(time.Minute))
-	if _, err := req.ReadFrom(rw); err != nil {
+	var req proto.Request
+	if err := s.dec.Decode(&req); err != nil {
 		return errors.Wrap(err, "fail to read request")
 	}
-	switch header := req.Header.(type) {
+	switch body := req.Body.(type) {
 	case *proto.Quit:
-		return s.serveQuit(rw, &req, header)
+		return s.serveQuit(&req, body)
 	case *proto.Put:
-		return s.servePut(rw, &req, header)
+		return s.servePut(&req, body)
 	case *proto.Get:
-		return s.serveError(rw, &req, errors.Errorf("unsupported request type %d", req.Title.Verb))
+		return s.serveError(&req, errors.New("unsupported request type GET"))
 	default:
-		return s.serveError(rw, &req, errors.Errorf("unknown request type %d", req.Title.Verb))
+		return s.serveError(&req, errors.Errorf("unknown request type %v", reflect.TypeOf(req.Body)))
 	}
 	return nil
 }
 
-func (s *session) serveQuit(rw io.ReadWriter, req *proto.Request, quit *proto.Quit) error {
-	s.writeResp(rw, req, &proto.Response{})
+func (s *session) serveQuit(req *proto.Request, quit *proto.Quit) error {
+	s.writeResp(req, &proto.Response{})
 	return errQuit
 }
 
-func (s *session) servePut(rw io.ReadWriter, req *proto.Request, put *proto.Put) error {
-	writer, err := s.ws.Writer(req.Title.ClientID, put.JournalDir)
+func (s *session) servePut(req *proto.Request, put *proto.Put) error {
+	writer, err := s.ws.Writer(req.ClientID, put.JournalDir)
 	if err != nil {
-		return errors.Wrap(err, "fail to get writer for client "+req.Title.ClientID)
+		return errors.Wrap(err, "fail to get writer for client "+req.ClientID)
 	}
-	for _, msg := range req.Messages {
+	for _, msg := range put.Messages {
 		if msg.Offset > writer.Offset() {
 			return errors.Wrapf(err, "offset out of order, msg: %d, writer %d", msg.Offset, writer.Offset())
 		} else if msg.Offset < writer.Offset() { // redundant
 			continue
 		}
 		if err := writer.Append(&msg); err != nil {
-			return s.serveError(rw, req, err)
+			return s.serveError(req, err)
 		}
 	}
 	if err := writer.Flush(); err != nil {
-		return s.serveError(rw, req, err)
+		return s.serveError(req, err)
 	}
 	if err := writer.Sync(); err != nil {
-		return s.serveError(rw, req, err)
+		return s.serveError(req, err)
 	}
-	s.writeResp(rw, req, &proto.Response{})
+	s.writeResp(req, &proto.Response{})
 	return nil
 }
 
-func (s *session) serveError(rw io.ReadWriter, req *proto.Request, err error) error {
-	s.writeResp(rw, req, &proto.Response{
+func (s *session) serveError(req *proto.Request, err error) error {
+	s.writeResp(req, &proto.Response{
 		Err: err.Error(),
 	})
 	return err
 }
 
-func (s *session) writeResp(w io.Writer, req *proto.Request, resp *proto.Response) error {
+func (s *session) writeResp(req *proto.Request, resp *proto.Response) error {
 	s.c.SetWriteDeadline(time.Now().Add(s.Timeout))
-	if _, err := resp.WriteTo(w); err != nil {
-		return errors.Wrap(err, "fail to write response to "+req.Title.ClientID)
+	if err := s.enc.Encode(resp); err != nil {
+		return errors.Wrap(err, "fail to write response to "+req.ClientID)
 	}
 	return nil
 }
