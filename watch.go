@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"gopkg.in/fsnotify.v1"
+	"h12.me/sej/internal/reader"
 )
 
 type watchedJournalDir struct {
@@ -73,9 +74,8 @@ func (d *watchedJournalDir) Close() error {
 // watchedFile is a io.SeekReader and reopens the underlying file
 // whenever reading to an io.EOF
 type watchedFile struct {
-	file     *os.File
-	fileName string
-	watcher  *changeWatcher
+	file    *fileReader
+	watcher *changeWatcher
 }
 
 func openWatchedFile(name string) (*watchedFile, error) {
@@ -83,7 +83,7 @@ func openWatchedFile(name string) (*watchedFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	file, err := os.Open(name)
+	file, err := openFileReader(name)
 	if err != nil {
 		watcher.Close()
 		return nil, err
@@ -94,7 +94,7 @@ func openWatchedFile(name string) (*watchedFile, error) {
 	}, nil
 }
 
-func (f *watchedFile) FileName() string { return f.fileName }
+func (f *watchedFile) Name() string { return f.file.Name() }
 
 func (f *watchedFile) Watch() chan bool {
 	return f.watcher.Watch()
@@ -122,7 +122,7 @@ func (f *watchedFile) reopen() error {
 	if err != nil {
 		return err
 	}
-	newFile, err := os.Open(f.file.Name())
+	newFile, err := openFileReader(f.file.Name())
 	if err != nil {
 		return err
 	}
@@ -233,4 +233,32 @@ func (w *changeWatcher) Close() error {
 	w.watcher.Close()
 	w.wg.Wait()
 	return nil
+}
+
+type fileReader struct {
+	*reader.Reader
+	f *os.File
+}
+
+func openFileReader(filename string) (*fileReader, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	return &fileReader{
+		Reader: reader.NewReaderSize(f, 65536),
+		f:      f,
+	}, nil
+}
+
+func (f *fileReader) Name() string {
+	return f.f.Name()
+}
+
+func (f *fileReader) Close() error {
+	return f.f.Close()
+}
+
+func (f *fileReader) Stat() (os.FileInfo, error) {
+	return f.f.Stat()
 }

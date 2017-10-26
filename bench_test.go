@@ -72,3 +72,36 @@ func BenchmarkWriterStartup(b *testing.B) {
 		w.Close()
 	}
 }
+
+func BenchmarkScanOnly(b *testing.B) {
+	path := newTestPath(b)
+	w, err := NewWriter(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	now := time.Now()
+	value := bytes.Repeat([]byte{'a'}, 100)
+	for i := 0; i < b.N; i++ {
+		key := []byte("key-" + fmt.Sprintf("%09x", i))
+		msg := Message{Key: key, Value: value, Timestamp: now}
+		if err := w.Append(&msg); err != nil {
+			b.Fatal(err)
+		}
+	}
+	w.Close()
+
+	s, err := NewScanner(path, 0)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer s.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if !s.Scan() {
+			b.Fatal("expect more data")
+		}
+	}
+	b.StopTimer()
+}

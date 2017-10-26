@@ -2,7 +2,6 @@ package sej
 
 import (
 	"io"
-	"os"
 	"time"
 )
 
@@ -26,7 +25,7 @@ type Scanner struct {
 type watchedReadSeekCloser interface {
 	readSeekCloser
 	Watch() chan bool
-	FileName() string
+	Name() string
 }
 
 // NewScanner creates a scanner for reading dir/jnl starting from offset
@@ -114,7 +113,7 @@ func (r *Scanner) Scan() bool {
 	// check offset
 	if r.message.Offset != r.offset {
 		r.err = &ScanOffsetError{
-			File:           r.file.FileName(),
+			File:           r.file.Name(),
 			Offset:         r.message.Offset,
 			Timestamp:      r.message.Timestamp,
 			ExpectedOffset: r.offset,
@@ -174,18 +173,15 @@ func (r *Scanner) Close() error {
 }
 
 type dummyWatchedFile struct {
-	*os.File
-	fileName string
+	*fileReader
 }
 
 func openDummyWatchedFile(file string) (*dummyWatchedFile, error) {
-	f, err := os.Open(file)
+	f, err := openFileReader(file)
 	if err != nil {
 		return nil, err
 	}
-	return &dummyWatchedFile{File: f, fileName: file}, nil
+	return &dummyWatchedFile{fileReader: f}, nil
 }
 
 func (f *dummyWatchedFile) Watch() chan bool { return nil }
-
-func (f *dummyWatchedFile) FileName() string { return f.fileName }
