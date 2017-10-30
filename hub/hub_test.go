@@ -31,12 +31,10 @@ func BenchmarkHubBatch1000(b *testing.B) {
 	tt := newHubTest(b)
 	defer tt.Close()
 
-	var (
-		batchSize = 1000
-		batchNum  = b.N
-	)
+	const batchSize = 1000
+	batchNum := b.N
 	now := time.Now().Truncate(time.Millisecond).UTC()
-	value := bytes.Repeat([]byte{'a'}, 100)
+	value := bytes.Repeat([]byte{'a'}, 2000)
 	messages := make([]sej.Message, batchSize*batchNum)
 	for i := range messages {
 		messages[i] = sej.Message{
@@ -46,6 +44,7 @@ func BenchmarkHubBatch1000(b *testing.B) {
 			Value:     value,
 		}
 	}
+	start := time.Now()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		batch := messages[batchSize*i : batchSize*(i+1)]
@@ -54,6 +53,7 @@ func BenchmarkHubBatch1000(b *testing.B) {
 		}
 	}
 	b.StopTimer()
+	fmt.Println("qps", float64(batchNum)*batchSize/time.Since(start).Seconds())
 	tt.VerifyMessages(tt.clientDirOnHub(), messages)
 }
 
