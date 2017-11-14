@@ -10,22 +10,21 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"h12.me/sej"
 )
 
 type (
 	Server struct {
 		Addr    string
-		Dir     string
 		Timeout time.Duration
 		ErrChan chan error
 		LogChan chan string
+		Handler Handler
 
 		l  net.Listener
 		mu sync.Mutex
 	}
 	Handler interface {
-		Handle(msg *sej.Message) (uint64, error)
+		Handle(req *Request) error
 	}
 )
 
@@ -46,7 +45,6 @@ func (s *Server) Start() error {
 	s.mu.Unlock()
 	s.log("listening to " + s.Addr)
 
-	ws := newWriters(s.Dir)
 	go func() {
 		for {
 			sock, err := l.Accept()
@@ -59,7 +57,7 @@ func (s *Server) Start() error {
 				}
 				break
 			}
-			go newSession(sock, ws, s).loop()
+			go newSession(sock, s).loop()
 		}
 	}()
 	return nil
@@ -102,11 +100,10 @@ type session struct {
 	enc    *gob.Encoder
 	dec    *gob.Decoder
 	outBuf *bufio.Writer
-	ws     *writers
 	*Server
 }
 
-func newSession(c net.Conn, ws *writers, s *Server) *session {
+func newSession(c net.Conn, s *Server) *session {
 	w := bufio.NewWriter(c)
 	enc := gob.NewEncoder(w)
 	return &session{
@@ -114,7 +111,6 @@ func newSession(c net.Conn, ws *writers, s *Server) *session {
 		enc:    enc,
 		dec:    gob.NewDecoder(c),
 		outBuf: w,
-		ws:     ws,
 		Server: s,
 	}
 }
@@ -152,11 +148,9 @@ func (s *session) serve() error {
 	case *Put:
 		return s.servePut(&req, body)
 	case *Get:
-		return s.serveError(&req, errors.New("unsupported request type GET"))
-	default:
-		return s.serveError(&req, errors.Errorf("unknown request type %v", reflect.TypeOf(req.Command)))
+		return s.serveGet(&req, body)
 	}
-	return nil
+	return s.serveError(&req, errors.Errorf("unknown request type %v", reflect.TypeOf(req.Command)))
 }
 
 func (s *session) serveQuit(req *Request, quit *Quit) error {
@@ -164,25 +158,12 @@ func (s *session) serveQuit(req *Request, quit *Quit) error {
 	return errQuit
 }
 
+func (s *session) serveGet(req *Request, get *Get) error {
+	return s.serveError(req, errors.New("unsupported request type GET"))
+}
+
 func (s *session) servePut(req *Request, put *Put) error {
-	writer, err := s.ws.Writer(req.ClientID, put.JournalDir)
-	if err != nil {
-		return errors.Wrap(err, "fail to get writer for client "+req.ClientID)
-	}
-	for _, msg := range put.Messages {
-		if msg.Offset > writer.Offset() {
-			return errors.Wrapf(err, "offset out of order, msg: %d, writer %d", msg.Offset, writer.Offset())
-		} else if msg.Offset < writer.Offset() { // redundant
-			continue
-		}
-		if err := writer.Append(&msg); err != nil {
-			return s.serveError(req, err)
-		}
-	}
-	if err := writer.Flush(); err != nil {
-		return s.serveError(req, err)
-	}
-	if err := writer.Sync(); err != nil {
+	if err := s.Handler.Handle(req); err != nil {
 		return s.serveError(req, err)
 	}
 	s.writeResp(req, &Response{})
@@ -200,6 +181,42 @@ func (s *session) writeResp(req *Request, resp *Response) error {
 	s.c.SetWriteDeadline(time.Now().Add(s.Timeout))
 	if err := s.enc.Encode(resp); err != nil {
 		return errors.Wrap(err, "fail to write response to "+req.ClientID)
+	}
+	return nil
+}
+
+type JournalCopyHandler struct {
+	ws *writers
+}
+
+func NewJournalCopyHandler(dir string) *JournalCopyHandler {
+	return &JournalCopyHandler{ws: newWriters(dir)}
+}
+
+func (h *JournalCopyHandler) Handle(req *Request) error {
+	put, ok := req.Command.(*Put)
+	if !ok {
+		return fmt.Errorf("unsupported command type %v", reflect.TypeOf(req.Command))
+	}
+	writer, err := h.ws.Writer(req.ClientID, put.JournalDir)
+	if err != nil {
+		return errors.Wrap(err, "fail to get writer for client "+req.ClientID)
+	}
+	for _, msg := range put.Messages {
+		if msg.Offset > writer.Offset() {
+			return errors.Wrapf(err, "offset out of order, msg: %d, writer %d", msg.Offset, writer.Offset())
+		} else if msg.Offset < writer.Offset() { // redundant
+			continue
+		}
+		if err := writer.Append(&msg); err != nil {
+			return err
+		}
+	}
+	if err := writer.Flush(); err != nil {
+		return err
+	}
+	if err := writer.Sync(); err != nil {
+		return err
 	}
 	return nil
 }

@@ -58,6 +58,7 @@ func BenchmarkHubBatch1000(b *testing.B) {
 }
 
 type hubTest struct {
+	dir string
 	sej.Test
 	*Client
 	*Server
@@ -82,10 +83,10 @@ func newHubTest(t testing.TB) *hubTest {
 	const addr = "127.0.0.1:19001"
 	server := &Server{
 		Addr:    addr,
-		Dir:     serverDir,
 		Timeout: time.Second,
 		ErrChan: make(chan error, 1),
 		LogChan: make(chan string, 1),
+		Handler: NewJournalCopyHandler(serverDir),
 	}
 	if err := server.Start(); err != nil {
 		t.Fatal(err)
@@ -107,6 +108,7 @@ func newHubTest(t testing.TB) *hubTest {
 		Timeout:    time.Second,
 	}
 	return &hubTest{
+		dir:    serverDir,
 		Test:   sej.Test{t},
 		Server: server,
 		Client: client,
@@ -114,7 +116,7 @@ func newHubTest(t testing.TB) *hubTest {
 }
 
 func (h *hubTest) clientDirOnHub() string {
-	return path.Join(h.Server.Dir, h.Client.ClientID+"."+h.Client.JournalDir)
+	return path.Join(h.dir, h.Client.ClientID+"."+h.Client.JournalDir)
 }
 
 func (h *hubTest) VerifyServerMessages(messages []sej.Message) {
