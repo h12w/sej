@@ -45,21 +45,19 @@ func (s *Server) Start() error {
 	s.mu.Unlock()
 	s.log("listening to " + s.Addr)
 
-	go func() {
-		for {
-			sock, err := l.Accept()
-			if err != nil {
-				s.mu.Lock()
-				closed := (s.l == nil)
-				s.mu.Unlock()
-				if !closed {
-					s.error(err)
-				}
-				break
+	for {
+		sock, err := l.Accept()
+		if err != nil {
+			s.mu.Lock()
+			closed := (s.l == nil)
+			s.mu.Unlock()
+			if !closed {
+				s.error(err)
 			}
-			go newSession(sock, s).loop()
+			break
 		}
-	}()
+		go newSession(sock, s).loop()
+	}
 	return nil
 }
 
