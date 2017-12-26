@@ -2,6 +2,7 @@ package sejutil
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"time"
 
@@ -57,6 +58,10 @@ func (c *Consumer) Start() (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			err = errors.New(fmt.Sprint(e))
+			trace := make([]byte, 4096)
+			count := runtime.Stack(trace, true)
+			fmt.Fprintf(os.Stderr, "Recover from panic: %s\n", err)
+			fmt.Fprintf(os.Stderr, "Stack of %d bytes:\n%s\n", count, trace)
 		}
 	}()
 	if err := c.init(); err != nil {
