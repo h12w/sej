@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"sync"
-	"time"
 )
 
 // Writer writes to segmented journal files
@@ -103,9 +102,6 @@ func (w *Writer) Append(msg *Message) error {
 		return errors.New("value is too long")
 	}
 	msg.Offset = w.offset
-	if msg.Timestamp.IsZero() {
-		msg.Timestamp = time.Now().UTC()
-	}
 	numWritten, err := WriteMessage(w.w, w.msgBuf, msg)
 	w.fileLen += int(numWritten)
 	if err != nil {
