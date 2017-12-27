@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"time"
 )
@@ -49,7 +50,13 @@ func WriteMessage(w io.Writer, buf []byte, m *Message) (int64, error) {
 	}
 
 	ts := m.Timestamp
-	n, err = writeInt64(w, buf, ts.UnixNano())
+	var nano int64
+	if ts.IsZero() {
+		nano = math.MinInt64
+	} else {
+		nano = ts.UnixNano()
+	}
+	n, err = writeInt64(w, buf, nano)
 	cnt += int64(n)
 	if err != nil {
 		return cnt, err
@@ -111,7 +118,9 @@ func (m *Message) ReadFrom(r io.Reader) (n int64, err error) {
 	if err != nil {
 		return cnt, err
 	}
-	m.Timestamp = time.Unix(0, unixNano).UTC()
+	if unixNano != math.MinInt64 {
+		m.Timestamp = time.Unix(0, unixNano).UTC()
+	}
 
 	nn, err = readByte(r, &m.Type)
 	cnt += int64(nn)
