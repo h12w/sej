@@ -120,6 +120,8 @@ func (m *Message) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 	if unixNano != math.MinInt64 {
 		m.Timestamp = time.Unix(0, unixNano).UTC()
+	} else {
+		m.Timestamp = time.Time{}
 	}
 
 	nn, err = readByte(r, &m.Type)
