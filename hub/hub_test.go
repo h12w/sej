@@ -66,9 +66,6 @@ type hubTest struct {
 
 func (h *hubTest) Close() {
 	t := h.Test
-	if err := h.Client.Quit(); err != nil {
-		t.Fatal(err)
-	}
 	if err := h.Client.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -84,18 +81,20 @@ func newHubTest(t testing.TB) *hubTest {
 	server := &Server{
 		Addr:    addr,
 		Timeout: time.Second,
-		ErrChan: make(chan error, 1),
+		// ErrChan: make(chan error, 1),
 		LogChan: make(chan string, 1),
 		Handler: NewJournalCopyHandler(serverDir),
 	}
-	if err := server.Start(); err != nil {
-		t.Fatal(err)
-	}
 	go func() {
-		for err := range server.ErrChan {
-			fmt.Println("server error", err)
+		if err := server.Start(); err != nil {
+			t.Fatal(err)
 		}
 	}()
+	// go func() {
+	// 	for err := range server.ErrChan {
+	// 		fmt.Println("server error", err)
+	// 	}
+	// }()
 	go func() {
 		for line := range server.LogChan {
 			t.Log("server log:", line)

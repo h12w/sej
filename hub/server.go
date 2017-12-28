@@ -1,30 +1,32 @@
 package hub
 
 import (
-	"bufio"
-	"encoding/gob"
 	"fmt"
 	"net"
-	"reflect"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+	"h12.me/sej"
 )
 
 type (
 	Server struct {
 		Addr    string
 		Timeout time.Duration
-		ErrChan chan error
+		// ErrChan chan error
 		LogChan chan string
-		Handler Handler
+		g       *grpc.Server
+		Handler
 
-		l  net.Listener
 		mu sync.Mutex
 	}
 	Handler interface {
-		Handle(req *Request) error
+		Put(ctx context.Context, req *PutRequest) (*PutResponse, error)
+		Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	}
 )
 
@@ -32,33 +34,23 @@ var errQuit = errors.New("quit")
 
 func (s *Server) Start() error {
 	s.mu.Lock()
-	l := s.l
-	if l == nil {
-		var err error
-		l, err = net.Listen("tcp", s.Addr)
-		if err != nil {
-			s.mu.Unlock()
-			return err
-		}
-		s.l = l
+	if s.g != nil {
+		s.mu.Unlock()
+		return nil
 	}
-	s.mu.Unlock()
+	l, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	s.log("listening to " + s.Addr)
+	s.g = grpc.NewServer()
+	RegisterHubServer(s.g, s)
+	reflection.Register(s.g)
+	g := s.g
+	s.mu.Unlock()
 
-	for {
-		sock, err := l.Accept()
-		if err != nil {
-			s.mu.Lock()
-			closed := (s.l == nil)
-			s.mu.Unlock()
-			if !closed {
-				s.error(err)
-			}
-			break
-		}
-		go newSession(sock, s).loop()
-	}
-	return nil
+	return g.Serve(l)
 }
 
 func (s *Server) log(format string, v ...interface{}) {
@@ -72,114 +64,12 @@ func (s *Server) log(format string, v ...interface{}) {
 }
 
 func (s *Server) Close() error {
-	var err error
 	s.mu.Lock()
-	if s.l != nil {
-		err = s.l.Close()
-		s.l = nil
+	if s.g != nil {
+		s.g.GracefulStop()
+		s.g = nil
 	}
 	s.mu.Unlock()
-	return err
-}
-
-func (s *Server) error(err error) error {
-	if s.ErrChan == nil {
-		return err
-	}
-	select {
-	case s.ErrChan <- err:
-	default:
-	}
-	return err
-}
-
-type session struct {
-	c      net.Conn
-	enc    *gob.Encoder
-	dec    *gob.Decoder
-	outBuf *bufio.Writer
-	*Server
-}
-
-func newSession(c net.Conn, s *Server) *session {
-	w := bufio.NewWriter(c)
-	enc := gob.NewEncoder(w)
-	return &session{
-		c:      c,
-		enc:    enc,
-		dec:    gob.NewDecoder(c),
-		outBuf: w,
-		Server: s,
-	}
-}
-
-func (s *session) loop() {
-	defer func() {
-		if err := s.c.Close(); err != nil {
-			s.error(errors.Wrap(err, "fail to close client socket"))
-		}
-	}()
-	defer s.outBuf.Flush()
-	for {
-		if err := s.serve(); err != nil {
-			if err != errQuit {
-				s.error(err)
-			}
-			break
-		}
-		if err := s.outBuf.Flush(); err != nil {
-			s.error(err)
-			break
-		}
-	}
-}
-
-func (s *session) serve() error {
-	s.c.SetReadDeadline(time.Now().Add(time.Minute))
-	var req Request
-	if err := s.dec.Decode(&req); err != nil {
-		return errors.Wrap(err, "fail to read request")
-	}
-	switch body := req.Command.(type) {
-	case *Quit:
-		return s.serveQuit(&req, body)
-	case *Put:
-		return s.servePut(&req, body)
-	case *Get:
-		return s.serveGet(&req, body)
-	}
-	return s.serveError(&req, errors.Errorf("unknown request type %v", reflect.TypeOf(req.Command)))
-}
-
-func (s *session) serveQuit(req *Request, quit *Quit) error {
-	s.writeResp(req, &Response{})
-	return errQuit
-}
-
-func (s *session) serveGet(req *Request, get *Get) error {
-	return s.serveError(req, errors.New("unsupported request type GET"))
-}
-
-func (s *session) servePut(req *Request, put *Put) error {
-	if err := s.Handler.Handle(req); err != nil {
-		return s.serveError(req, err)
-	}
-	s.writeResp(req, &Response{})
-	return nil
-}
-
-func (s *session) serveError(req *Request, err error) error {
-	s.writeResp(req, &Response{
-		Err: err.Error(),
-	})
-	return err
-}
-
-func (s *session) writeResp(req *Request, resp *Response) error {
-	s.c.SetWriteDeadline(time.Now().Add(s.Timeout))
-	if err := s.enc.Encode(resp); err != nil {
-		return errors.Wrap(err, "fail to write response to "+req.ClientID)
-	}
 	return nil
 }
 
@@ -191,30 +81,36 @@ func NewJournalCopyHandler(dir string) *JournalCopyHandler {
 	return &JournalCopyHandler{ws: newWriters(dir)}
 }
 
-func (h *JournalCopyHandler) Handle(req *Request) error {
-	put, ok := req.Command.(*Put)
-	if !ok {
-		return fmt.Errorf("unsupported command type %v", reflect.TypeOf(req.Command))
-	}
-	writer, err := h.ws.Writer(req.ClientID, put.JournalDir)
+func (h *JournalCopyHandler) Put(ctx context.Context, req *PutRequest) (*PutResponse, error) {
+	writer, err := h.ws.Writer(req.ClientID, req.JournalDir)
 	if err != nil {
-		return errors.Wrap(err, "fail to get writer for client "+req.ClientID)
+		return nil, errors.Wrap(err, "fail to get writer for client "+req.ClientID)
 	}
-	for _, msg := range put.Messages {
+	for _, msg := range req.Messages {
 		if msg.Offset > writer.Offset() {
-			return errors.Wrapf(err, "offset out of order, msg: %d, writer %d", msg.Offset, writer.Offset())
+			return nil, errors.Wrapf(err, "offset out of order, msg: %d, writer %d", msg.Offset, writer.Offset())
 		} else if msg.Offset < writer.Offset() { // redundant
 			continue
 		}
-		if err := writer.Append(&msg); err != nil {
-			return err
+		if err := writer.Append(&sej.Message{
+			Offset:    msg.Offset,
+			Timestamp: time.Unix(0, msg.Timestamp).UTC(),
+			Type:      byte(msg.Type),
+			Key:       msg.Key,
+			Value:     msg.Value,
+		}); err != nil {
+			return nil, err
 		}
 	}
 	if err := writer.Flush(); err != nil {
-		return err
+		return nil, err
 	}
 	if err := writer.Sync(); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return &PutResponse{}, nil
+}
+
+func (h *JournalCopyHandler) Get(ctx context.Context, req *GetRequest) (*GetResponse, error) {
+	return &GetResponse{}, nil
 }
