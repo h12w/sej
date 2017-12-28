@@ -29,9 +29,10 @@ type watchedReadSeekCloser interface {
 }
 
 // NewScanner creates a scanner for reading dir/jnl starting from offset
+// Default Timeout is 1 second
 func NewScanner(dir string, offset uint64) (*Scanner, error) {
 	dir = JournalDirPath(dir)
-	r := Scanner{}
+	r := Scanner{Timeout: time.Second}
 	journalDir, err := openWatchedJournalDir(dir)
 	if err != nil {
 		return nil, err
