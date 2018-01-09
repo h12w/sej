@@ -138,6 +138,7 @@ func (c *ScanCommand) Execute(args []string) error {
 	s.Timeout = time.Second
 	cnt := 0
 	overCount := 0
+scan:
 	for s.Scan() {
 		msg := s.Message()
 		if !msg.Timestamp.Before(c.Start.Time) {
@@ -146,7 +147,11 @@ func (c *ScanCommand) Execute(args []string) error {
 					if !c.Count {
 						switch c.Format {
 						case "json", "msgpack", "bson":
-							line, _ := Format(c.Format).Sprint(msg)
+							line, err := Format(c.Format).Sprint(msg)
+							if err != nil {
+								fmt.Println(err)
+								break scan
+							}
 							fmt.Println(line)
 						}
 					}
@@ -258,10 +263,15 @@ func (c *TailCommand) Execute(args []string) error {
 		return scanner.Err()
 	}
 	cnt := 0
+scan:
 	for scanner.Scan() {
 		switch c.Format {
 		case "json", "msgpack", "bson":
-			line, _ := Format(c.Format).Sprint(scanner.Message())
+			line, err := Format(c.Format).Sprint(scanner.Message())
+			if err != nil {
+				fmt.Println(err)
+				break scan
+			}
 			fmt.Println(line)
 		}
 		cnt++
