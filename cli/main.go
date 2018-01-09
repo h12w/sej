@@ -1,6 +1,9 @@
-package main
+package cli
 
-import "h12.me/config"
+import (
+	"h12.me/config"
+	"h12.me/sej"
+)
 
 // Command is the top-level command
 type Command struct {
@@ -35,8 +38,16 @@ type Command struct {
 	Timestamp TimestampCommand `
                 command:"timestamp"
                 description:"show timestamp of an offset in a journal directory"`
+
+	Formatter Formatter
 }
 
-func main() {
+type Formatter interface {
+	Sprint(msg *sej.Message) (string, error)
+}
+
+var DefaultFormatter Formatter = Format("json")
+
+func Run() {
 	config.ExecuteCommand(&Command{})
 }

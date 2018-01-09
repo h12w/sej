@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"encoding/json"
@@ -145,15 +145,12 @@ scan:
 			if msg.Timestamp.Before(c.End.Time) {
 				if c.Type == 0 || msg.Type == c.Type {
 					if !c.Count {
-						switch c.Format {
-						case "json", "msgpack", "bson":
-							line, err := Format(c.Format).Sprint(msg)
-							if err != nil {
-								fmt.Println(err)
-								break scan
-							}
-							fmt.Println(line)
+						line, err := DefaultFormatter.Sprint(msg)
+						if err != nil {
+							fmt.Println(err)
+							break scan
 						}
+						fmt.Println(line)
 					}
 					cnt++
 				}
@@ -265,15 +262,12 @@ func (c *TailCommand) Execute(args []string) error {
 	cnt := 0
 scan:
 	for scanner.Scan() {
-		switch c.Format {
-		case "json", "msgpack", "bson":
-			line, err := Format(c.Format).Sprint(scanner.Message())
-			if err != nil {
-				fmt.Println(err)
-				break scan
-			}
-			fmt.Println(line)
+		line, err := DefaultFormatter.Sprint(scanner.Message())
+		if err != nil {
+			fmt.Println(err)
+			break scan
 		}
+		fmt.Println(line)
 		cnt++
 		if cnt >= int(c.Count) {
 			break
