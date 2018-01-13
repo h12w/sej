@@ -38,6 +38,16 @@ func (m *Message) IsNull() bool {
 		m.Value == nil
 }
 
+func (m *Message) Copy() Message {
+	return Message{
+		Offset:    m.Offset,
+		Timestamp: m.Timestamp,
+		Type:      m.Type,
+		Key:       append([]byte(nil), m.Key...),
+		Value:     append([]byte(nil), m.Value...),
+	}
+}
+
 // WriteMessage writes the message
 // buf should be at least 8 bytes and is used to avoid allocation
 func WriteMessage(w io.Writer, buf []byte, m *Message) (int64, error) {
