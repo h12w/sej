@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"h12.me/errors"
 	"h12.me/sej"
+	"h12.me/sej/sejutil"
 	"h12.me/uuid/hexid"
 )
 
@@ -105,58 +106,31 @@ func (c *CountCommand) Execute(args []string) error {
 }
 
 func (c *ScanCommand) Execute(args []string) error {
-	// fmt.Fprintln(os.Stderr, "couting from", c.Start, c.End, "for type", c.Type)
-	dir, err := sej.OpenJournalDir(sej.JournalDirPath(c.Dir))
+	s, err := sejutil.NewScannerFrom(c.Dir, c.Start.Time)
 	if err != nil {
 		return err
 	}
-	startOffset := dir.First().FirstOffset
-	for _, file := range dir.Files {
-		f, err := os.Open(file.FileName)
-		if err != nil {
-			return err
-		}
-		var msg sej.Message
-		if _, err := msg.ReadFrom(f); err != nil && err != io.EOF {
-			f.Close()
-			return err
-		}
-		f.Close()
-		if msg.Timestamp.After(c.Start.Time) {
-			// fmt.Fprintf(os.Stderr, "start from %v, %d\n", msg.Timestamp, startOffset)
-			break
-		}
-		startOffset = file.FirstOffset
-	}
-	if int(startOffset)-5000 > 0 {
-		startOffset -= 5000
-	}
-	s, err := sej.NewScanner(c.Dir, startOffset)
-	if err != nil {
-		return err
-	}
+	defer s.Close()
 	s.Timeout = time.Second
 	cnt := 0
 	overCount := 0
 scan:
 	for s.Scan() {
 		msg := s.Message()
-		if !msg.Timestamp.Before(c.Start.Time) {
-			if msg.Timestamp.Before(c.End.Time) {
-				if c.Type == 0 || msg.Type == c.Type {
-					if !c.Count {
-						line, err := DefaultFormatter.Sprint(msg)
-						if err != nil {
-							fmt.Println(err)
-							break scan
-						}
-						fmt.Println(line)
+		if msg.Timestamp.Before(c.End.Time) {
+			if c.Type == 0 || msg.Type == c.Type {
+				if !c.Count {
+					line, err := DefaultFormatter.Sprint(msg)
+					if err != nil {
+						fmt.Println(err)
+						break scan
 					}
-					cnt++
+					fmt.Println(line)
 				}
-			} else {
-				overCount++
+				cnt++
 			}
+		} else {
+			overCount++
 		}
 		if overCount > 5000 {
 			break
@@ -164,6 +138,46 @@ scan:
 	}
 	if c.Count {
 		fmt.Println(cnt)
+	}
+	return nil
+}
+
+type ResetCommand struct {
+	JournalDirConfig `positional-args:"yes"  required:"yes"`
+	Start            Timestamp `
+	long:"start"
+	description:"start time"`
+	Offset string `
+		long:"offset"
+		description:"the offset"`
+	Reset bool `
+		long:"reset"
+		description:"reset or just print"
+	`
+}
+
+func (c *ResetCommand) Execute(args []string) error {
+	if c.Offset == "" {
+		return errors.New("empty offset")
+	}
+	offset, err := sej.NewOffset(c.Dir, c.Offset, sej.FirstOffset)
+	if err != nil {
+		return err
+	}
+	defer offset.Close()
+	s, err := sejutil.NewScannerFrom(c.Dir, c.Start.Time)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+	msg := s.Message()
+	fmt.Println("current-offset:", offset.Value())
+	fmt.Println("reset-time:", msg.Timestamp)
+	fmt.Println("reset-offset:", msg.Offset)
+	fmt.Println("reset", c.Reset)
+
+	if c.Reset {
+		return offset.Commit(msg.Offset)
 	}
 	return nil
 }

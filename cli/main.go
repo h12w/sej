@@ -23,6 +23,10 @@ type Command struct {
                 command:"offset"
                 description:"print first, last offset and all consumer offsets of a journal directory"`
 
+	Reset ResetCommand `
+                command:"reset"
+                description:"reset offset back to a time"`
+
 	Tail TailCommand `
                 command:"tail"
                 description:"print the tailing messages of a segmented journal directory"`
