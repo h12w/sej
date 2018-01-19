@@ -127,7 +127,10 @@ func (o *Offset) Commit(offset uint64) error {
 
 // Close closes opened resources
 func (o *Offset) Close() error {
-	o.fileLock.Close()
+	if o.fileLock != nil {
+		o.fileLock.Close()
+		o.fileLock = nil
+	}
 	return o.dir.Close()
 }
 
