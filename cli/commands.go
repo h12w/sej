@@ -174,7 +174,7 @@ func (c *ResetCommand) Execute(args []string) error {
 	fmt.Println("current-offset:", offset.Value())
 	fmt.Println("reset-time:", msg.Timestamp)
 	fmt.Println("reset-offset:", msg.Offset)
-	fmt.Println("reset", c.Reset)
+	fmt.Println("reset:", c.Reset)
 
 	if c.Reset {
 		return offset.Commit(msg.Offset)
