@@ -160,7 +160,7 @@ func (c *ResetCommand) Execute(args []string) error {
 	if c.Offset == "" {
 		return errors.New("empty offset")
 	}
-	offset, err := sej.NewOffset(c.Dir, c.Offset, sej.FirstOffset)
+	offset, err := sej.OpenReadonlyOffset(c.Dir, c.Offset)
 	if err != nil {
 		return err
 	}
@@ -177,6 +177,11 @@ func (c *ResetCommand) Execute(args []string) error {
 	fmt.Println("reset:", c.Reset)
 
 	if c.Reset {
+		offset, err := sej.NewOffset(c.Dir, c.Offset, sej.FirstOffset)
+		if err != nil {
+			return err
+		}
+		defer offset.Close()
 		return offset.Commit(msg.Offset)
 	}
 	return nil

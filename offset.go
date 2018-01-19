@@ -62,6 +62,25 @@ func NewOffset(dir, name string, defaultOffset DefaultOffset) (*Offset, error) {
 	return o, nil
 }
 
+func OpenReadonlyOffset(dir, name string) (*Offset, error) {
+	filePrefix := path.Join(dir, name)
+	d, err := os.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+	o := &Offset{dir: d, file: filePrefix + ".ofs"}
+	f, err := os.Open(o.file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	o.value, err = ReadOffset(f)
+	if err != nil {
+		return nil, err
+	}
+	return o, nil
+}
+
 // Value gets the current offset value
 func (o *Offset) Value() uint64 {
 	return o.value
@@ -69,6 +88,9 @@ func (o *Offset) Value() uint64 {
 
 // Commit saves and syncs the offset to disk
 func (o *Offset) Commit(offset uint64) error {
+	if o.fileLock == nil {
+		panic("read only offset cannot be used for committing offset")
+	}
 	if offset == o.value {
 		return nil
 	}
