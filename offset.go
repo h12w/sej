@@ -63,6 +63,7 @@ func NewOffset(dir, name string, defaultOffset DefaultOffset) (*Offset, error) {
 }
 
 func OpenReadonlyOffset(dir, name string) (*Offset, error) {
+	dir = OffsetDirPath(dir)
 	filePrefix := path.Join(dir, name)
 	d, err := os.Open(dir)
 	if err != nil {
