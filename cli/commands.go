@@ -13,10 +13,10 @@ import (
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"gopkg.in/yaml.v2"
-	"h12.me/errors"
-	"h12.me/sej"
-	"h12.me/sej/sejutil"
-	"h12.me/uuid/hexid"
+	"h12.io/errors"
+	"h12.io/sej"
+	"h12.io/sej/sejutil"
+	"h12.io/uuid/hexid"
 )
 
 type FileCommand struct {

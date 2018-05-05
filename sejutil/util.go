@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"h12.me/sej"
+	"h12.io/sej"
 )
 
 func NewScannerFrom(journalDir string, from time.Time) (*sej.Scanner, error) {

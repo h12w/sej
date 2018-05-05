@@ -1,12 +1,12 @@
 sej: Segmented Journals
 =======================
 
-`h12.me/sej` provides composable components of distributed, persisted message queue and allows trading off between reliablilty, latency and throughput with minimal devops overhead.
+`h12.io/sej` provides composable components of distributed, persisted message queue and allows trading off between reliablilty, latency and throughput with minimal devops overhead.
 
 Package Organization
 --------------------
 
-* h12.me/sej: writer, scanner and offset
+* h12.io/sej: writer, scanner and offset
     * shard: sharding
     * hub: copying across machines
     * cmd/sej: command line tool

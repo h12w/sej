@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"h12.me/sej"
+	"h12.io/sej"
 )
 
 type Client struct {

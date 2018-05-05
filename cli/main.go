@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"h12.me/config"
-	"h12.me/sej"
+	"h12.io/config"
+	"h12.io/sej"
 )
 
 // Command is the top-level command

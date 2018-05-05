@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"h12.me/sej"
+	"h12.io/sej"
 )
 
 func BenchmarkAppend(b *testing.B) {

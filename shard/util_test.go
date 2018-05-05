@@ -3,7 +3,7 @@ package shard
 import (
 	"testing"
 
-	"h12.me/sej"
+	"h12.io/sej"
 )
 
 func TestMain(m *testing.M) {

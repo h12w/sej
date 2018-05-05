@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"gopkg.in/fsnotify.v1"
-	"h12.me/sej/internal/reader"
+	"h12.io/sej/internal/reader"
 )
 
 type watchedJournalDir struct {

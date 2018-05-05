@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"h12.me/sej"
+	"h12.io/sej"
 )
 
 type stackTracer interface {
